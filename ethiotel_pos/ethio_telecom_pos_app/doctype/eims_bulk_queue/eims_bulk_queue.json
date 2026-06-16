@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-05 09:59:11.068435",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_tr38",
+  "posting_date",
+  "amended_from",
+  "column_break_zuyw",
+  "conversation_id",
+  "status",
+  "section_break_mtbf",
+  "queue_items",
+  "section_break_vxmf",
+  "log_message"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_tr38",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "EIMS Bulk Queue",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date"
+  },
+  {
+   "fieldname": "column_break_zuyw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "conversation_id",
+   "fieldtype": "Data",
+   "label": "Conversation ID"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPending Validation\nCompleted\nFailed"
+  },
+  {
+   "fieldname": "section_break_mtbf",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "queue_items",
+   "fieldtype": "Table",
+   "label": "Queue Items",
+   "options": "EIMS Bulk Queue Item"
+  },
+  {
+   "fieldname": "section_break_vxmf",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "log_message",
+   "fieldtype": "Long Text",
+   "label": "Log Message"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-06-05 10:04:28.924125",
+ "modified_by": "Administrator",
+ "module": "Ethio Telecom POS App",
+ "name": "EIMS Bulk Queue",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

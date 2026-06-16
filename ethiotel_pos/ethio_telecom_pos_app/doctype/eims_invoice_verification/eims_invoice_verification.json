@@ -1,0 +1,128 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{irn}",
+ "creation": "2026-06-10 11:47:20.541589",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "irn",
+  "verified_at",
+  "column_break_irez",
+  "verification_status",
+  "mor_doc_number",
+  "buyer_tin",
+  "section_break_zzzc",
+  "total_value",
+  "section_break_groo",
+  "verification_summary",
+  "exception_logs_section",
+  "error_logs",
+  "report_data"
+ ],
+ "fields": [
+  {
+   "fieldname": "irn",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Invoice Reference Number (IRN)",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_irez",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "verified_at",
+   "fieldtype": "Datetime",
+   "label": "Verified At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_value",
+   "fieldtype": "Float",
+   "label": "Total Value",
+   "read_only": 1
+  },
+  {
+   "fieldname": "verification_status",
+   "fieldtype": "Select",
+   "label": "Verification Status",
+   "options": "Pending\nVerified\nNot Registered\nFailed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "mor_doc_number",
+   "fieldtype": "Data",
+   "label": "MoR Doc Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "buyer_tin",
+   "fieldtype": "Data",
+   "label": "Buyer TIN",
+   "read_only": 1
+  },
+  {
+   "fieldname": "exception_logs_section",
+   "fieldtype": "Section Break",
+   "label": "Exception Logs"
+  },
+  {
+   "fieldname": "error_logs",
+   "fieldtype": "Small Text",
+   "label": "Error Logs",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_groo",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "verification_summary",
+   "fieldtype": "HTML",
+   "label": "Verification Summary"
+  },
+  {
+   "fieldname": "section_break_zzzc",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "report_data",
+   "fieldtype": "Text Editor",
+   "hidden": 1,
+   "label": "Report Data",
+   "print_hide": 1,
+   "report_hide": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-11 09:25:12.282260",
+ "modified_by": "Administrator",
+ "module": "Ethio Telecom POS App",
+ "name": "EIMS Invoice Verification",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

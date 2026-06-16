@@ -1,0 +1,139 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-05 09:38:44.503730",
+ "default_view": "List",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "client_id",
+  "api_key",
+  "column_break_hsmj",
+  "client_secrete",
+  "seller_tin",
+  "base_url",
+  "section_break_xuyx",
+  "system_number",
+  "column_break_jfux",
+  "system_type",
+  "section_break_ilyk",
+  "current_access_token",
+  "token_expiry",
+  "private_key_section",
+  "private_key",
+  "public_certificate_section",
+  "public_certificate"
+ ],
+ "fields": [
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID"
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "API Key"
+  },
+  {
+   "fieldname": "column_break_hsmj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "client_secrete",
+   "fieldtype": "Password",
+   "label": "Client Secrete"
+  },
+  {
+   "fieldname": "seller_tin",
+   "fieldtype": "Data",
+   "label": "Seller Tin"
+  },
+  {
+   "fieldname": "base_url",
+   "fieldtype": "Data",
+   "label": "Base URL"
+  },
+  {
+   "fieldname": "section_break_xuyx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "system_number",
+   "fieldtype": "Data",
+   "label": "System Number"
+  },
+  {
+   "fieldname": "column_break_jfux",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "system_type",
+   "fieldtype": "Select",
+   "label": "System Type",
+   "options": "POS\nERP\nMANUAL"
+  },
+  {
+   "fieldname": "section_break_ilyk",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "current_access_token",
+   "fieldtype": "Small Text",
+   "label": "Current Access Token"
+  },
+  {
+   "fieldname": "token_expiry",
+   "fieldtype": "Datetime",
+   "label": "Token Expiry"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "private_key_section",
+   "fieldtype": "Section Break",
+   "label": "Private Key"
+  },
+  {
+   "fieldname": "private_key",
+   "fieldtype": "Small Text",
+   "label": "Private Key"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "public_certificate_section",
+   "fieldtype": "Section Break",
+   "label": "Public Certificate"
+  },
+  {
+   "fieldname": "public_certificate",
+   "fieldtype": "Small Text",
+   "label": "Public Certificate"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-06-12 10:47:21.903690",
+ "modified_by": "Administrator",
+ "module": "Ethio Telecom POS App",
+ "name": "EIMS Setting",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

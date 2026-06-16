@@ -1,0 +1,260 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-11 10:29:10.641254",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "payment_entry",
+  "receipt_number",
+  "receipt_type",
+  "receipt_date",
+  "column_break_depf",
+  "receipt_counter",
+  "eims_rrn",
+  "eims_status",
+  "remark",
+  "section_break_pusb",
+  "response_log",
+  "parties_tab",
+  "seller_tin",
+  "party_type",
+  "party",
+  "column_break_iepz",
+  "party_name",
+  "source_system_type",
+  "source_system_no",
+  "payment_details_tab",
+  "mode_of_payment",
+  "collected_amount",
+  "currency",
+  "column_break_bzfw",
+  "collector_name",
+  "payment_provider",
+  "account_number",
+  "transaction_number",
+  "tab_4_tab",
+  "invoices_covered",
+  "receipt_tab",
+  "receipt_viewport",
+  "qr_code_base64"
+ ],
+ "fields": [
+  {
+   "fieldname": "receipt_number",
+   "fieldtype": "Data",
+   "label": "Receipt Number"
+  },
+  {
+   "fieldname": "receipt_type",
+   "fieldtype": "Select",
+   "label": "Receipt Type",
+   "options": "Sales Receipts"
+  },
+  {
+   "fieldname": "receipt_date",
+   "fieldtype": "Datetime",
+   "label": "Receipt Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_depf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "receipt_counter",
+   "fieldtype": "Int",
+   "label": "Receipt Counter"
+  },
+  {
+   "fieldname": "eims_rrn",
+   "fieldtype": "Data",
+   "label": "EIMS RRN",
+   "read_only": 1
+  },
+  {
+   "fieldname": "eims_status",
+   "fieldtype": "Select",
+   "label": "EIMS Status",
+   "options": "Pending\nActive\nFailed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "parties_tab",
+   "fieldtype": "Tab Break",
+   "label": "Parties"
+  },
+  {
+   "fieldname": "seller_tin",
+   "fieldtype": "Data",
+   "label": "Seller TIN",
+   "read_only": 1
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Link",
+   "label": "Party Type",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Dynamic Link",
+   "label": "Party",
+   "options": "party_type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_iepz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "party_name",
+   "fieldtype": "Data",
+   "label": "Party Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_system_type",
+   "fieldtype": "Data",
+   "label": "Source System Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_system_no",
+   "fieldtype": "Data",
+   "label": "Source System No",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payment_details_tab",
+   "fieldtype": "Tab Break",
+   "label": "Payment Details"
+  },
+  {
+   "fieldname": "mode_of_payment",
+   "fieldtype": "Link",
+   "label": "Mode of Payment",
+   "options": "Mode of Payment"
+  },
+  {
+   "fieldname": "collected_amount",
+   "fieldtype": "Currency",
+   "label": "Collected Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "column_break_bzfw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "collector_name",
+   "fieldtype": "Data",
+   "label": "Collector Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payment_provider",
+   "fieldtype": "Data",
+   "label": "Payment Provider",
+   "read_only": 1
+  },
+  {
+   "fieldname": "account_number",
+   "fieldtype": "Data",
+   "label": "Account Number"
+  },
+  {
+   "fieldname": "transaction_number",
+   "fieldtype": "Data",
+   "label": "Transaction Number"
+  },
+  {
+   "fieldname": "tab_4_tab",
+   "fieldtype": "Tab Break",
+   "label": "Invoices"
+  },
+  {
+   "fieldname": "invoices_covered",
+   "fieldtype": "Table",
+   "label": "Invoices Covered",
+   "options": "EIMS Invoice Receipt Reference",
+   "read_only": 1
+  },
+  {
+   "fieldname": "qr_code_base64",
+   "fieldtype": "Long Text",
+   "hidden": 1,
+   "label": "QR Code Base64",
+   "print_hide": 1,
+   "read_only": 1,
+   "report_hide": 1
+  },
+  {
+   "fieldname": "receipt_tab",
+   "fieldtype": "Tab Break",
+   "label": "Receipt"
+  },
+  {
+   "fieldname": "receipt_viewport",
+   "fieldtype": "HTML",
+   "label": "Receipt Viewport"
+  },
+  {
+   "fieldname": "payment_entry",
+   "fieldtype": "Link",
+   "label": "Payment Entry",
+   "options": "Payment Entry"
+  },
+  {
+   "fieldname": "remark",
+   "fieldtype": "Small Text",
+   "label": "Remark"
+  },
+  {
+   "fieldname": "response_log",
+   "fieldtype": "Small Text",
+   "label": "Response Log",
+   "print_hide": 1,
+   "read_only": 1,
+   "report_hide": 1
+  },
+  {
+   "fieldname": "section_break_pusb",
+   "fieldtype": "Section Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-11 15:19:45.742523",
+ "modified_by": "Administrator",
+ "module": "Ethio Telecom POS App",
+ "name": "EIMS Invoice Receipt",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
