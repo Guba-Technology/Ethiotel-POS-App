@@ -48,12 +48,12 @@ frappe.ui.form.on('EIMS Invoice Receipt', {
                         frm.reload_doc().then(() => {
                             if (r.message && r.message.success) {
                                 frappe.show_alert({
-                                    message: __('EIMS Receipt Certified and Registered Successfully!'),
+                                    message: __('EIRMS Receipt Certified and Registered Successfully!'),
                                     indicator: 'green'
                                 });
                             } else if (r.message && !r.message.success) {
                                 frappe.msgprint({
-                                    title: __('EIMS Gateway Rejection'),
+                                    title: __('EIRMS Gateway Rejection'),
                                     indicator: 'red',
                                     message: r.message.message
                                 });
@@ -62,9 +62,8 @@ frappe.ui.form.on('EIMS Invoice Receipt', {
                     }
                 });
             }).addClass('btn-primary');
-        }
-        else if (frm.doc.eims_status === 'Active') {
-            frm.add_custom_button(__('Show Receipt'), function() {
+        } else if (frm.doc.eims_status === 'Active') {
+            frm.add_custom_button(__('Print Preview '), function() {
                 frappe.call({
                     doc: frm.doc,
                     method: 'compile_receipt_html',
@@ -74,39 +73,32 @@ frappe.ui.form.on('EIMS Invoice Receipt', {
                             return;
                         }
 
-                        // Open popup window
                         var popup = window.open('', '_blank', 'toolbar=0,location=0,menubar=0,width=900,height=700');
                         if (!popup) {
                             frappe.msgprint(__('Popup blocked. Please allow popups for this site or use the inline preview.'));
                             return;
                         }
 
-                        // Build popup document using safe concatenation to avoid premature script termination
                         var doc = popup.document;
                         doc.open();
 
-                        // Head and styles
-                        var headHtml = '<!doctype html><html><head><meta charset="utf-8"><title>EIMS Receipt</title>';
+                        var headHtml = '<!doctype html><html><head><meta charset="utf-8"><title>EIRMS Receipt Preview</title>';
                         headHtml += '<style>';
-                        headHtml += 'body{font-family:Arial,Helvetica,sans-serif;color:#1f2d3d;margin:20px;}';
-                        headHtml += 'h3{margin:0 0 6px 0;} table{width:100%;border-collapse:collapse;} th,td{padding:8px;border:1px solid #cbd5e0;} thead tr{background:#edf2f7;}';
+                        headHtml += 'body{font-family:Arial,sans-serif;color:#000;margin:20px;}';
                         headHtml += '#popup-toolbar{position:fixed; top:12px; right:12px; z-index:9999; display:flex; gap:8px;}';
                         headHtml += '#popup-toolbar button{background:#3182ce;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:700;}';
                         headHtml += '#popup-toolbar button.close-btn{background:#e2e8f0;color:#1f2d3d;}';
-                        headHtml += '@media print { #popup-toolbar { display: none !important; } body { -webkit-print-color-adjust: exact; } }';
+                        headHtml += '@media print { #popup-toolbar, .inline-print-btn { display: none !important; } body { -webkit-print-color-adjust: exact; margin:0; } }';
                         headHtml += '</style></head><body>';
 
-                        // Toolbar (visible in popup, hidden on print via @media print)
                         var toolbarHtml = '<div id="popup-toolbar">';
                         toolbarHtml += '<button id="popup-print">🖨️ Print</button>';
                         toolbarHtml += '<button id="popup-close" class="close-btn">Close</button>';
                         toolbarHtml += '</div>';
 
-                        // Content wrapper (leave margin-top so toolbar doesn't overlap)
                         var contentWrapperStart = '<div id="popup-content" style="margin-top:48px;">';
                         var contentWrapperEnd = '</div>';
 
-                        // Script: put as a string and inject via a safe concatenation (avoid literal </script> inside string)
                         var scriptContent = '';
                         scriptContent += '(function(){';
                         scriptContent += '  var printBtn = document.getElementById("popup-print");';
@@ -120,26 +112,20 @@ frappe.ui.form.on('EIMS Invoice Receipt', {
                         scriptContent += '    for (var i=0;i<imgs.length;i++){';
                         scriptContent += '      if (imgs[i].complete) { done(); } else { imgs[i].addEventListener("load", done); imgs[i].addEventListener("error", done); }';
                         scriptContent += '    }';
-                        scriptContent += '    setTimeout(function(){ window.print(); }, 2500);';
+                        scriptContent += '    setTimeout(function(){ window.print(); }, 1500);';
                         scriptContent += '  });';
                         scriptContent += '  closeBtn.addEventListener("click", function(){ window.close(); });';
                         scriptContent += '})();';
 
-                        // Write assembled HTML parts
                         doc.write(headHtml);
                         doc.write(toolbarHtml);
                         doc.write(contentWrapperStart);
-                        doc.write(r.message); // server-rendered receipt HTML
+                        doc.write(r.message); 
                         doc.write(contentWrapperEnd);
-
-                        // Inject script safely by splitting the closing tag
                         doc.write('<scr' + 'ipt>' + scriptContent + '</scr' + 'ipt>');
-
-                        // Close body/html
                         doc.write('</body></html>');
                         doc.close();
 
-                        // Focus popup
                         popup.focus();
                     }
                 });

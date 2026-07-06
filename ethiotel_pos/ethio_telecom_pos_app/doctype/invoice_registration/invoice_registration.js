@@ -3,7 +3,6 @@
 
 frappe.ui.form.on('Invoice Registration', {
     setup: function(frm) {
-        // Enforce strict link queries for manual overrides inside rows
         frm.set_query('sales_invoice', 'sales_invoice_list', function() {
             return {
                 filters: {

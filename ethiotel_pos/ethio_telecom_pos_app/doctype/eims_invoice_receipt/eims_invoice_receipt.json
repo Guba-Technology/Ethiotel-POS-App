@@ -43,7 +43,9 @@
   {
    "fieldname": "receipt_number",
    "fieldtype": "Data",
-   "label": "Receipt Number"
+   "in_list_view": 1,
+   "label": "Receipt Number",
+   "reqd": 1
   },
   {
    "fieldname": "receipt_type",
@@ -69,13 +71,13 @@
   {
    "fieldname": "eims_rrn",
    "fieldtype": "Data",
-   "label": "EIMS RRN",
+   "label": "EIRMS RRN",
    "read_only": 1
   },
   {
    "fieldname": "eims_status",
    "fieldtype": "Select",
-   "label": "EIMS Status",
+   "label": "EIRMS Status",
    "options": "Pending\nActive\nFailed",
    "read_only": 1
   },
@@ -184,8 +186,7 @@
    "fieldname": "invoices_covered",
    "fieldtype": "Table",
    "label": "Invoices Covered",
-   "options": "EIMS Invoice Receipt Reference",
-   "read_only": 1
+   "options": "EIMS Invoice Receipt Reference"
   },
   {
    "fieldname": "qr_code_base64",
@@ -210,6 +211,7 @@
    "fieldname": "payment_entry",
    "fieldtype": "Link",
    "label": "Payment Entry",
+   "link_filters": "[[\"Payment Entry\",\"status\",\"=\",\"Submitted\"]]",
    "options": "Payment Entry"
   },
   {
@@ -233,7 +235,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-11 15:19:45.742523",
+ "modified": "2026-07-03 14:15:48.047452",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "EIMS Invoice Receipt",

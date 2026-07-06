@@ -1,0 +1,83 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-26 12:24:15.249315",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "is_default",
+  "system_number",
+  "client_id",
+  "system_type",
+  "client_secret",
+  "private_key",
+  "public_certificate"
+ ],
+ "fields": [
+  {
+   "fieldname": "system_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "System Number",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Password",
+   "in_list_view": 1,
+   "label": "Client ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "client_secret",
+   "fieldtype": "Password",
+   "in_list_view": 1,
+   "label": "Client Secret",
+   "reqd": 1
+  },
+  {
+   "fieldname": "private_key",
+   "fieldtype": "Password",
+   "in_list_view": 1,
+   "label": "Private Key"
+  },
+  {
+   "fieldname": "public_certificate",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Public Certificate"
+  },
+  {
+   "fieldname": "system_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "System Type",
+   "options": "POS\nERP\nMANUAL",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_default",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Default"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-06-26 12:39:32.555576",
+ "modified_by": "Administrator",
+ "module": "Ethio Telecom POS App",
+ "name": "Client Data",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

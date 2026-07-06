@@ -6,19 +6,27 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "irn",
   "cancelled_at",
+  "is_bulk_cancellation",
   "column_break_gull",
   "status",
+  "cancellation_reasons",
   "section_break_ooaq",
   "remark",
-  "status_code"
+  "status_code",
+  "single_cancellation_tab",
+  "sales_invoice",
+  "irn",
+  "bulk_cancellation_tab",
+  "invoice_list"
  ],
  "fields": [
   {
+   "fetch_from": "sales_invoice.custom_irn",
    "fieldname": "irn",
    "fieldtype": "Data",
    "label": "IRN",
+   "read_only": 1,
    "unique": 1
   },
   {
@@ -52,12 +60,50 @@
    "fieldtype": "Datetime",
    "label": "Cancelled At",
    "read_only": 1
+  },
+  {
+   "fieldname": "cancellation_reasons",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Cancellation Reasons",
+   "options": "\nOrder cancelled\nDuplicate\nData entry mistake\nOthers",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.is_bulk_cancellation == 0;",
+   "fieldname": "single_cancellation_tab",
+   "fieldtype": "Tab Break",
+   "label": "Single Cancellation"
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "label": "Sales Invoice",
+   "options": "Sales Invoice"
+  },
+  {
+   "depends_on": "eval:doc.is_bulk_cancellation == 1;",
+   "fieldname": "bulk_cancellation_tab",
+   "fieldtype": "Tab Break",
+   "label": "Bulk Cancellation"
+  },
+  {
+   "fieldname": "invoice_list",
+   "fieldtype": "Table",
+   "label": "Invoice List",
+   "options": "Registered Invoice List"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_bulk_cancellation",
+   "fieldtype": "Check",
+   "label": "Is Bulk Cancellation"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-11 09:57:16.124320",
+ "modified": "2026-07-03 09:22:25.384921",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "EIMS Invoice Cancellation",

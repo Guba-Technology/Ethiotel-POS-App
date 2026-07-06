@@ -5,7 +5,8 @@ from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 class CustomSalesInvoice(SalesInvoice):
     def before_save(self):
         super().before_save()
-        
+        if not self.disable_rounded_total:
+            frappe.throw(_("Rounded Total is required for EIRMS submission. Please ensure that 'Disable Rounded Total' is checked."))
         if not self.custom_document_number or int(self.custom_document_number) == 0:
             result = frappe.db.sql("""
                 SELECT MAX(CAST(custom_document_number AS UNSIGNED)) 
@@ -16,7 +17,7 @@ class CustomSalesInvoice(SalesInvoice):
 
         allowed_tax_types = [
             "TOT10", "TOT2", "VAT15", "VWHT", "TWHT", "VATEX", 
-            "VATWH", "WHOP2", "WTHOI", "VAT0", "VWTH"
+            "VATWH", "WHOP2", "WTHOI", "VAT0", "VWTH","WTHOI"
         ]
         
         for tax in self.get("taxes"):

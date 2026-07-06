@@ -97,14 +97,14 @@
   },
   {
    "fieldname": "phone",
-   "fieldtype": "Phone",
+   "fieldtype": "Data",
    "label": "Phone"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-09 13:45:53.921475",
+ "modified": "2026-06-29 12:15:30.748019",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "Customer Details",

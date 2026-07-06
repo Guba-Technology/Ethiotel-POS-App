@@ -6,30 +6,17 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "client_id",
   "api_key",
+  "default_system_number",
   "column_break_hsmj",
-  "client_secrete",
   "seller_tin",
   "base_url",
-  "section_break_xuyx",
-  "system_number",
-  "column_break_jfux",
-  "system_type",
   "section_break_ilyk",
+  "client_data_list",
   "current_access_token",
-  "token_expiry",
-  "private_key_section",
-  "private_key",
-  "public_certificate_section",
-  "public_certificate"
+  "token_expiry"
  ],
  "fields": [
-  {
-   "fieldname": "client_id",
-   "fieldtype": "Data",
-   "label": "Client ID"
-  },
   {
    "fieldname": "api_key",
    "fieldtype": "Password",
@@ -40,11 +27,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "client_secrete",
-   "fieldtype": "Password",
-   "label": "Client Secrete"
-  },
-  {
    "fieldname": "seller_tin",
    "fieldtype": "Data",
    "label": "Seller Tin"
@@ -53,25 +35,6 @@
    "fieldname": "base_url",
    "fieldtype": "Data",
    "label": "Base URL"
-  },
-  {
-   "fieldname": "section_break_xuyx",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "system_number",
-   "fieldtype": "Data",
-   "label": "System Number"
-  },
-  {
-   "fieldname": "column_break_jfux",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "system_type",
-   "fieldtype": "Select",
-   "label": "System Type",
-   "options": "POS\nERP\nMANUAL"
   },
   {
    "fieldname": "section_break_ilyk",
@@ -88,33 +51,24 @@
    "label": "Token Expiry"
   },
   {
-   "collapsible": 1,
-   "fieldname": "private_key_section",
-   "fieldtype": "Section Break",
-   "label": "Private Key"
+   "fieldname": "client_data_list",
+   "fieldtype": "Table",
+   "label": "Client Data List",
+   "options": "Client Data",
+   "reqd": 1
   },
   {
-   "fieldname": "private_key",
-   "fieldtype": "Small Text",
-   "label": "Private Key"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "public_certificate_section",
-   "fieldtype": "Section Break",
-   "label": "Public Certificate"
-  },
-  {
-   "fieldname": "public_certificate",
-   "fieldtype": "Small Text",
-   "label": "Public Certificate"
+   "fieldname": "default_system_number",
+   "fieldtype": "Data",
+   "label": "Default System Number",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-06-12 10:47:21.903690",
+ "modified": "2026-06-26 12:46:10.049515",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "EIMS Setting",

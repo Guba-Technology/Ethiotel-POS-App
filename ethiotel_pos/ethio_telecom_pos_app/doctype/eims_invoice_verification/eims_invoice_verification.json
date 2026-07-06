@@ -1,11 +1,12 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "format:{irn}",
+ "autoname": "format:{select_registered_invoices}",
  "creation": "2026-06-10 11:47:20.541589",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "select_registered_invoices",
   "irn",
   "verified_at",
   "column_break_irez",
@@ -22,10 +23,12 @@
  ],
  "fields": [
   {
+   "fetch_from": "select_registered_invoices.custom_irn",
    "fieldname": "irn",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Invoice Reference Number (IRN)",
+   "read_only": 1,
    "reqd": 1,
    "unique": 1
   },
@@ -95,12 +98,20 @@
    "label": "Report Data",
    "print_hide": 1,
    "report_hide": 1
+  },
+  {
+   "fieldname": "select_registered_invoices",
+   "fieldtype": "Link",
+   "label": "Select Registered Invoices",
+   "link_filters": "[[\"Sales Invoice\",\"custom_eims_status\",\"in\",[\"Registered\",\"Cancelled\",null,\"Failed\",null]]]",
+   "options": "Sales Invoice",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-11 09:25:12.282260",
+ "modified": "2026-07-03 15:05:41.850500",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "EIMS Invoice Verification",
