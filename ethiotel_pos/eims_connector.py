@@ -31,6 +31,13 @@ eims_logger = _get_eims_logger()
 EIMS_MIN_BULK_SIZE = 2
 
 
+def _add_if_present(target_dict, key, value):
+    """Only add a key to the payload if value is not None / not an empty string.
+    Used for every Conditional / Optional field per the EIMS requirement spec."""
+    if value is not None and str(value).strip() != "":
+        target_dict[key] = value
+
+
 class EIMSConnector:
     def __init__(self):
         self.settings = frappe.get_single("EIMS Setting")
@@ -208,7 +215,16 @@ class EIMSConnector:
         company_link = f"/app/company/{company.name}"
 
         customer_type = frappe.db.get_value("Customer", invoice_doc.customer, "customer_type")
-        transaction_type = "B2B" if customer_type in ["Company", "Partnership"] else "B2C"
+        transaction_type =""
+        t_map = {
+            "Individual": "B2C",
+            "Company": "B2B",
+            "Government": "G2C",
+            "Partnership": "B2B"
+        }
+        transaction_type = t_map.get(customer_type, "")
+        if transaction_type == "":
+            frappe.throw(f"Customer Type in Customer Document is not supported: {customer_type}. Only Individual, Company, Government and Partnership are supported.")
 
         if not frappe.db.exists("Customer Details", invoice_doc.customer):
             frappe.throw(
@@ -221,46 +237,62 @@ class EIMSConnector:
         cust_details = frappe.get_doc("Customer Details", invoice_doc.customer)
         cust_link = f"/app/customer-details/{cust_details.name}"
 
+        # BuyerDetails.Tin — Conditional, required only if transaction is NOT B2C/G2C
         raw_tin = cust_details.tin_number or ""
         clean_tin = re.sub(r"\D", "", str(raw_tin))
-        if not clean_tin or len(clean_tin) < 10 or len(clean_tin) > 20:
+        if transaction_type not in ("B2C", "G2C"):
+            if not clean_tin or len(clean_tin) < 10 or len(clean_tin) > 20:
+                frappe.throw(
+                    f"Validation Error on <a href='{cust_link}'>Customer Details ({cust_details.name})</a>:<br><br>"
+                    f"<b>TIN Number</b> must be purely numeric and between 10 and 20 digits long. Found: '{raw_tin}'",
+                    title="EIMS Schema Error: Invalid TIN"
+                )
+        elif clean_tin and (len(clean_tin) < 10 or len(clean_tin) > 20):
             frappe.throw(
                 f"Validation Error on <a href='{cust_link}'>Customer Details ({cust_details.name})</a>:<br><br>"
                 f"<b>TIN Number</b> must be purely numeric and between 10 and 20 digits long. Found: '{raw_tin}'",
                 title="EIMS Schema Error: Invalid TIN"
             )
 
+        # BuyerDetails.Email — validate format only if present
         buyer_email = (cust_details.email or "").strip()
         email_pattern = re.compile(r"^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$")
-        if not buyer_email or len(buyer_email) < 6 or not email_pattern.match(buyer_email):
+        if buyer_email and not email_pattern.match(buyer_email):
             frappe.throw(
                 f"Validation Error on <a href='{cust_link}'>Customer Details ({cust_details.name})</a>:<br><br>"
-                f"<b>Email</b> is invalid or too short. It must match a standard email format (e.g., info@domain.com). "
+                f"<b>Email</b> is invalid. It must match a standard email format (e.g., info@domain.com). "
                 f"Found: '{buyer_email}'",
                 title="EIMS Schema Error: Invalid Email"
             )
 
+        # BuyerDetails.Region — Required, numeric 1-3 chars
         buyer_region = (cust_details.region or "").strip()
-        if not buyer_region or not buyer_region.isdigit() or not (1 <= len(buyer_region) <= 3):
+        if buyer_region and (not buyer_region.isdigit() or not (1 <= len(buyer_region) <= 3)):
             frappe.throw(
                 f"Validation Error on <a href='{cust_link}'>Customer Details ({cust_details.name})</a>:<br><br>"
                 f"<b>Region</b> must be a numeric code string between 1 and 3 digits (e.g., '13'). "
                 f"Found: '{buyer_region}'",
                 title="EIMS Schema Error: Invalid Region Code"
             )
+        elif not buyer_region:
+            frappe.throw(
+                f"Validation Error on <a href='{cust_link}'>Customer Details ({cust_details.name})</a>:<br><br>"
+                f"<b>Region</b> is required for EIMS submission.",
+                title="EIMS Schema Error: Missing Region Code"
+            )
 
-        seller_vat_number = self._require(company.custom_vat_number, "VAT Number", company.name, company_link)
+        seller_vat_number = company.custom_vat_number  # Conditional
         seller_email = self._require(company.email, "Email", company.name, company_link)
         seller_phone = self._require(company.phone_no, "Phone", company.name, company_link)
         seller_region = self._require(company.custom_seller_region_code, "Seller Region Code", company.name, company_link)
         seller_wereda = self._require(company.custom_seller_woreda_code, "Seller Wereda Code", company.name, company_link)
         seller_city = self._require(company.custom_city, "City", company.name, company_link)
-        seller_house_number = self._require(company.custom_house_number, "House Number", company.name, company_link)
+        seller_house_number = company.custom_house_number  # Optional
 
         buyer_city = self._require(cust_details.city, "City", cust_details.name, cust_link)
-        buyer_country = self._require(cust_details.country, "Country", cust_details.name, cust_link)
-        buyer_zone = self._require(cust_details.zone, "Zone", cust_details.name, cust_link)
-        buyer_kebele = self._require(cust_details.kebele, "Kebele", cust_details.name, cust_link)
+        buyer_country = cust_details.country  # Optional
+        buyer_zone = cust_details.zone  # Optional
+        buyer_kebele = cust_details.kebele  # Optional
         buyer_woreda = self._require(cust_details.woreda, "Wereda", cust_details.name, cust_link)
 
         buyer_id_number = cust_details.id_number
@@ -268,13 +300,8 @@ class EIMSConnector:
         if transaction_type == "B2C":
             buyer_id_number = self._require(buyer_id_number, "ID Number", cust_details.name, cust_link)
             buyer_id_type = self._require(buyer_id_type, "ID Type", cust_details.name, cust_link)
-        buyer_vat_number = frappe.db.get_value("Customer", invoice_doc.customer, "custom_vat_number")
-        if not buyer_vat_number:
-            frappe.throw(
-                f"Validation Error on <a href='{customer_link}'>Customer ({customer.name})</a>:<br><br>"
-                f"<b>VAT Number</b> is required for EIMS submission.",
-                title="EIMS Schema Error: Missing VAT Number"
-            )
+
+        buyer_vat_number = frappe.db.get_value("Customer", invoice_doc.customer, "custom_vat_number")  # Conditional
 
         if override_doc_num is not None:
             doc_num = override_doc_num
@@ -286,21 +313,24 @@ class EIMSConnector:
         else:
             prev_irn = self._lookup_irn_for_doc_num(doc_num - 1)
 
-        cashier_name = "AAA"
+        cashier_name = None
         sales_team_entries = invoice_doc.get("sales_team")
         if sales_team_entries:
-            cashier_name = sales_team_entries[0].sales_person or "AAA"
+            cashier_name = sales_team_entries[0].sales_person
 
-        payment_mode = "CASH"
+        payment_mode = None
         payment_entries = invoice_doc.get("payments")
         if payment_entries:
-            payment_mode = payment_entries[0].mode_of_payment or "CASH"
-        raw_phone = cust_details.phone or invoice_doc.contact_mobile
+            payment_mode = payment_entries[0].mode_of_payment
+
+        raw_phone = cust_details.phone or invoice_doc.contact_mobile or ""
         clean_phone = raw_phone.replace("+251", "0").replace(" ", "")
-        if not clean_phone.startswith("0"):
+        if clean_phone and not clean_phone.startswith("0"):
             clean_phone = "0" + clean_phone
 
         default_client = self.get_default_client_data()
+
+        # ===================== Mandatory-only skeleton (file 1's field names/casing) =====================
         payload = {
             "Version": "1",
             "TransactionType": transaction_type,
@@ -312,58 +342,110 @@ class EIMSConnector:
             },
             "SellerDetails": {
                 "Tin": self.settings.seller_tin,
-                "VatNumber": seller_vat_number,
                 "LegalName": company.custom_seller_legal_name or company.company_name,
                 "Email": seller_email,
                 "Phone": seller_phone,
                 "Region": seller_region,
                 "Wereda": seller_wereda,
                 "City": seller_city,
-                "HouseNumber": seller_house_number
             },
             "BuyerDetails": {
                 "City": buyer_city,
-                "Email": buyer_email,
-                "HouseNumber": cust_details.house_number or "NEW",
-                "IdNumber": buyer_id_number or "",
-                "IdType": buyer_id_type or "",
-                "Tin": clean_tin,
-                "LegalName": cust_details.legal_name or invoice_doc.customer_name,
-                "Phone": clean_phone,
                 "Region": buyer_region,
-                "Country": buyer_country,
-                "Zone": buyer_zone,
-                "Kebele": buyer_kebele,
-                "VatNumber": buyer_vat_number,
-                "Wereda": buyer_woreda
+                "Wereda": buyer_woreda,
             },
             "SourceSystem": {
                 "SystemType": default_client.system_type,
                 "SystemNumber": default_client.system_number,
-                "CashierName": cashier_name,
-                "SalesPersonName": cashier_name,
                 "InvoiceCounter": doc_num
             },
             "PaymentDetails": {
-                "Mode": payment_mode.upper(),
                 "PaymentTerm": "IMMEDIATE"
             },
             "ValueDetails": {
                 "InvoiceCurrency": invoice_doc.currency or "ETB",
-                "Discount": float(invoice_doc.discount_amount or 0.0),
-                "ExciseValue": 0.0,
-                "IncomeWithholdValue": 0.0,
-                "TransactionWithholdValue": 0.0,
                 "TaxValue": float(invoice_doc.total_taxes_and_charges or 0.0),
                 "TotalValue": float(invoice_doc.grand_total or 0.0)
             },
-            "ReferenceDetails": {
-                "PreviousIrn": prev_irn,
-                "RelatedDocument": None
-            },
+            "ReferenceDetails": {},
             "ItemList": []
         }
 
+        # ===================== Conditional / Optional fields =====================
+
+        # SellerDetails
+        _add_if_present(payload["SellerDetails"], "VatNumber", seller_vat_number)
+        _add_if_present(payload["SellerDetails"], "HouseNumber", seller_house_number)
+        _add_if_present(payload["SellerDetails"], "TradeName", company.get("custom_trade_name"))
+        _add_if_present(payload["SellerDetails"], "SubTin", company.get("custom_sub_tin"))
+        _add_if_present(payload["SellerDetails"], "Country", company.get("custom_country"))
+        _add_if_present(payload["SellerDetails"], "Zone", company.get("custom_zone"))
+        _add_if_present(payload["SellerDetails"], "SubCity", company.get("custom_sub_city"))
+        _add_if_present(payload["SellerDetails"], "Kebele", company.get("custom_kebele"))
+        _add_if_present(payload["SellerDetails"], "Locality", company.get("custom_locality"))
+
+        # BuyerDetails
+        _add_if_present(payload["BuyerDetails"], "LegalName", cust_details.legal_name or invoice_doc.customer_name)
+        _add_if_present(payload["BuyerDetails"], "Tin", clean_tin)
+        _add_if_present(payload["BuyerDetails"], "SubTin", cust_details.get("sub_tin"))
+        _add_if_present(payload["BuyerDetails"], "VatNumber", buyer_vat_number)
+        _add_if_present(payload["BuyerDetails"], "Email", buyer_email)
+        _add_if_present(payload["BuyerDetails"], "Phone", clean_phone)
+        _add_if_present(payload["BuyerDetails"], "TradeName", cust_details.get("trade_name"))
+        _add_if_present(payload["BuyerDetails"], "Country", buyer_country)
+        _add_if_present(payload["BuyerDetails"], "Zone", buyer_zone)
+        _add_if_present(payload["BuyerDetails"], "SubCity", cust_details.get("sub_city"))
+        _add_if_present(payload["BuyerDetails"], "HouseNumber", cust_details.house_number)
+        _add_if_present(payload["BuyerDetails"], "Kebele", buyer_kebele)
+        _add_if_present(payload["BuyerDetails"], "Locality", cust_details.get("locality"))
+        _add_if_present(payload["BuyerDetails"], "IdNumber", buyer_id_number)
+        _add_if_present(payload["BuyerDetails"], "IdType", buyer_id_type)
+
+        # SourceSystem
+        _add_if_present(payload["SourceSystem"], "CashierName", cashier_name)
+        _add_if_present(payload["SourceSystem"], "SalesPersonName", cashier_name)
+
+        # PaymentDetails
+        _add_if_present(payload["PaymentDetails"], "Mode", payment_mode.upper() if payment_mode else None)
+
+        # ValueDetails
+        discount_val = float(invoice_doc.discount_amount or 0.0)
+        if discount_val:
+            payload["ValueDetails"]["Discount"] = discount_val
+
+        exchange_rate = getattr(invoice_doc, "conversion_rate", None)
+        if invoice_doc.currency and invoice_doc.currency != "ETB":
+            _add_if_present(payload["ValueDetails"], "ExchangeRate", exchange_rate)
+
+        excise_val = getattr(invoice_doc, "custom_excise_tax_value", None)
+        _add_if_present(payload["ValueDetails"], "ExciseValue", excise_val)
+
+        income_wht = getattr(invoice_doc, "custom_income_withhold_value", None)
+        _add_if_present(payload["ValueDetails"], "IncomeWithholdValue", income_wht)
+
+        trans_wht = getattr(invoice_doc, "custom_transaction_withhold_value", None)
+        _add_if_present(payload["ValueDetails"], "TransactionWithholdValue", trans_wht)
+
+        # DocumentDetails
+        manual_receipt_no = getattr(invoice_doc, "custom_manual_invoice_number", None)
+        _add_if_present(payload["DocumentDetails"], "ManualInvoiceNumber", manual_receipt_no)
+        reason_text = getattr(invoice_doc, "custom_reason", None)
+        _add_if_present(payload["DocumentDetails"], "Reason", reason_text)
+
+        # ReferenceDetails
+        payload["ReferenceDetails"]["PreviousIrn"] = prev_irn
+        related_doc = getattr(invoice_doc, "custom_related_document", None)
+        payload["ReferenceDetails"]["RelatedDocument"] = related_doc
+        po_number = getattr(invoice_doc, "po_no", None)
+        _add_if_present(payload["ReferenceDetails"], "PurchaseOrder", po_number)
+        contract_number = getattr(invoice_doc, "custom_contract_number", None)
+        _add_if_present(payload["ReferenceDetails"], "Contract", contract_number)
+        first_ticket = getattr(invoice_doc, "custom_first_ticket", None)
+        _add_if_present(payload["ReferenceDetails"], "FirstTicket", first_ticket)
+        last_ticket = getattr(invoice_doc, "custom_last_ticket", None)
+        _add_if_present(payload["ReferenceDetails"], "LastTicket", last_ticket)
+
+        # ===================== ItemList =====================
         tax_type = ""
         tax_rate = 0
         tax_entries = invoice_doc.get("taxes")
@@ -376,14 +458,11 @@ class EIMSConnector:
         for idx, item in enumerate(invoice_doc.items, start=1):
             base_rate = float(item.base_rate or 0.0)
             qty = float(item.qty or 0.0)
-
             line_net_amount = float(item.net_amount or 0.0)
-
             line_tax = round(line_net_amount * (tax_rate / 100), 2)
-
             raw_uom = str(item.uom or "PCS").strip().upper()
 
-            payload["ItemList"].append({
+            line_item = {
                 "LineNumber": idx,
                 "ItemCode": item.item_code,
                 "ProductDescription": item.description or item.item_name or "string",
@@ -393,12 +472,23 @@ class EIMSConnector:
                 "PreTaxValue": round(line_net_amount, 2),
                 "TaxCode": tax_type,
                 "TaxAmount": line_tax,
-                "Discount": float(item.distributed_discount_amount or 0.0),
-                "ExciseTaxValue": 0.0,
-                "HarmonizationCode": None,
                 "Unit": raw_uom if raw_uom in valid_units else "PCS",
                 "TotalLineAmount": round(line_net_amount + line_tax, 2)
-            })
+            }
+
+            _add_if_present(line_item, "HarmonizationCode", getattr(item, "custom_harmonization_code", None))
+
+            discount_amount = float(item.distributed_discount_amount or 0.0)
+            if discount_amount:
+                line_item["Discount"] = discount_amount
+
+            excise_tax_val = getattr(item, "custom_excise_tax_value", None)
+            if excise_tax_val:
+                line_item["ExciseTaxValue"] = float(excise_tax_val)
+            else:
+                line_item["ExciseTaxValue"] = 0.0
+
+            payload["ItemList"].append(line_item)
 
         self._validate_payload_schema_rules(payload, invoice_doc)
         return payload
@@ -449,30 +539,7 @@ class EIMSConnector:
                 irn = body_data.get("irn")
                 signed_qr_base64 = body_data.get("signedQR")
 
-                qr_code_url = ""
-                if signed_qr_base64:
-                    try:
-                        file_name = f"qr_{invoice_name}.png"
-                        old_file_id = frappe.db.get_value("File", {
-                            "attached_to_doctype": "Sales Invoice",
-                            "attached_to_name": invoice_name,
-                            "file_name": file_name
-                        }, "name")
-                        if old_file_id:
-                            frappe.delete_doc("File", old_file_id, ignore_permissions=True)
-
-                        qr_file = frappe.get_doc({
-                            "doctype": "File",
-                            "file_name": file_name,
-                            "attached_to_doctype": "Sales Invoice",
-                            "attached_to_name": invoice_name,
-                            "content": base64.b64decode(signed_qr_base64),
-                            "is_private": 0
-                        })
-                        qr_file.insert(ignore_permissions=True)
-                        qr_code_url = qr_file.file_url
-                    except Exception as qr_err:
-                        frappe.log_error(message=str(qr_err), title="EIMS QR Image Processing Error")
+                qr_code_url = self._save_qr_file(invoice_name, signed_qr_base64)
 
                 frappe.db.set_value("Sales Invoice", invoice_name, {
                     "custom_irn": irn,
@@ -538,7 +605,7 @@ class EIMSConnector:
             time.sleep(wait_seconds)
 
     def _register_single_leftover(self, doc, assigned_num, prev_irn, default_client, token):
-      
+
         payload = self.build_invoice_payload(
             doc, override_doc_num=assigned_num, override_prev_irn=prev_irn
         )
@@ -578,8 +645,6 @@ class EIMSConnector:
         pending_count = 0
         logs = []
 
-        # eims_logger.debug("=== submit_bulk_invoices START === invoice_names=%s", invoice_names)
-
         try:
             token = self.get_valid_token()
         except Exception as e:
@@ -617,7 +682,7 @@ class EIMSConnector:
         eims_logger.debug("register_url=%s is_https=%s", register_url, is_https)
 
         while pending:
-      
+
             if len(pending) < EIMS_MIN_BULK_SIZE:
                 doc = pending[0]
                 assigned_num = current_doc_num
@@ -651,7 +716,6 @@ class EIMSConnector:
                         successes += 1
                         logs.append(f"[{doc.name}] Success -> IRN: {irn} (DocNum: {assigned_num}, via single-invoice fallback)")
                     else:
-                        # Accepted asynchronously - final result arrives via eims_callback
                         conversation_id = res_json.get("conversationId") if isinstance(res_json, dict) else None
                         frappe.db.set_value("Sales Invoice", doc.name, {
                             "custom_eims_status": "Pending",
@@ -713,12 +777,6 @@ class EIMSConnector:
                     request_body = self._build_signed_envelope(json_string_payload, default_client)
                 else:
                     request_body = json.dumps(batch_payloads, separators=(",", ":"))
-
-                # eims_logger.debug("Batch payloads (unsigned): %s", json.dumps(batch_payloads, indent=2))
-                # eims_logger.debug("Request body sent: %s", request_body)
-                # eims_logger.debug("Auth headers (apikey redacted): %s", {
-                #     k: (v if k != "apikey" else "***redacted***") for k, v in auth_headers.items()
-                # })
 
                 response = self._post_with_retry(register_url, request_body, auth_headers, 30)
 
@@ -845,7 +903,6 @@ class EIMSConnector:
                     prev_irn = last_committed_irn
 
             except Exception as batch_err:
-                # frappe.log_error(message=frappe.get_traceback(), title="EIMS Bulk Submission System Crash")
                 eims_logger.exception("Bulk submission system crash")
                 for doc, assigned_num in batch_docs:
                     if doc.name not in results_map:
@@ -871,8 +928,6 @@ class EIMSConnector:
             f"Pending (awaiting callback): {pending_count} | Failures: {failures}\n\n"
             f"Execution Logs:\n" + "\n".join(logs)
         )
-
-        # eims_logger.debug("=== submit_bulk_invoices END === %s", summary_text)
 
         return {
             "status": overall_status,
@@ -923,7 +978,7 @@ class EIMSConnector:
                     title="EIMS Schema Error: Negative Pre-Tax Value"
                 )
 
-        discount = payload["ValueDetails"]["Discount"]
+        discount = payload["ValueDetails"].get("Discount", 0)
         if discount < 0:
             frappe.throw(
                 f"Validation Error on <a href='{invoice_link}'>Sales Invoice ({invoice_doc.name})</a>:<br><br>"
@@ -1008,8 +1063,6 @@ def eims_callback():
             eims_logger.debug("Empty callback body received - ignoring.")
             frappe.response["http_status_code"] = 200
             return {"status": "ignored_empty_body"}
-
-        # frappe.log_error(message=raw_body, title="EIMS Callback Received")
 
         try:
             payload = json.loads(raw_body)
