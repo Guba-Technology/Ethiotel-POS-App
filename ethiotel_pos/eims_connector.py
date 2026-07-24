@@ -208,7 +208,9 @@ class EIMSConnector:
                FROM `tabSales Invoice`
                WHERE custom_document_number IS NOT NULL AND custom_document_number != '' AND custom_eims_status IN ('Registered', 'Pending')""",
         )
-        return int(row[0][0]) if row and row[0][0] else 0
+        doc_num =  int(self.settings.last_document_number)+1 if self.settings.last_document_number else 0
+        row_doc_num = int(row[0][0]) if row and row[0][0] else 0
+        return max(doc_num, row_doc_num)
 
     def build_invoice_payload(self, invoice_doc, override_doc_num=None, override_prev_irn=None):
         company = frappe.get_doc("Company", invoice_doc.company)
@@ -330,7 +332,6 @@ class EIMSConnector:
 
         default_client = self.get_default_client_data()
 
-        # ===================== Mandatory-only skeleton (file 1's field names/casing) =====================
         payload = {
             "Version": "1",
             "TransactionType": transaction_type,
@@ -371,7 +372,6 @@ class EIMSConnector:
             "ItemList": []
         }
 
-        # ===================== Conditional / Optional fields =====================
 
         # SellerDetails
         _add_if_present(payload["SellerDetails"], "VatNumber", seller_vat_number)
@@ -445,7 +445,6 @@ class EIMSConnector:
         last_ticket = getattr(invoice_doc, "custom_last_ticket", None)
         _add_if_present(payload["ReferenceDetails"], "LastTicket", last_ticket)
 
-        # ===================== ItemList =====================
         tax_type = ""
         tax_rate = 0
         tax_entries = invoice_doc.get("taxes")

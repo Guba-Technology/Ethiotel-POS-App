@@ -13,6 +13,8 @@ class CustomSalesInvoice(SalesInvoice):
                 FROM `tabSales Invoice`
             """)
             cdn = result[0][0] if result and result[0][0] is not None else 0
+            eims_setting = frappe.get_doc("EIMS Setting", "EIMS Setting")
+            cdn = cdn if cdn > int(eims_setting.last_document_number) else eims_setting.last_document_number
             self.custom_document_number = cdn + 1
 
         allowed_tax_types = [

@@ -8,6 +8,7 @@
  "field_order": [
   "api_key",
   "default_system_number",
+  "last_document_number",
   "column_break_hsmj",
   "seller_tin",
   "base_url",
@@ -62,13 +63,18 @@
    "fieldtype": "Data",
    "label": "Default System Number",
    "read_only": 1
+  },
+  {
+   "fieldname": "last_document_number",
+   "fieldtype": "Int",
+   "label": "Last Document Number"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-06-26 12:46:10.049515",
+ "modified": "2026-07-24 09:29:04.123018",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "EIMS Setting",

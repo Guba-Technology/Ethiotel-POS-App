@@ -9,7 +9,16 @@ app_license = "mit"
 # ------------------
 
 # required_apps = []
-required_apps = ["erpnext", "posawesome"]
+required_apps = ["erpnext", "posawesome"]\
+
+fixtures = [{
+    "dt": "Custom Field",
+    "filters": [
+                [
+                    "dt","in",["Sales Invoice"],
+                ]
+            ],
+    }]
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
 # 	{

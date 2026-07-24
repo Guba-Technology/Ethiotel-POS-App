@@ -6,7 +6,7 @@ frappe.ui.form.on('Invoice Registration', {
         frm.set_query('sales_invoice', 'sales_invoice_list', function() {
             return {
                 filters: {
-                    'docstatus': 1,
+                    'docstatus': 0,
                     'custom_eims_status': ['in', ['Not Submitted', 'Failed', 'Pending','']]
                 }
             };
@@ -84,7 +84,7 @@ function auto_populate_filtered_invoices(frm) {
         args: {
             doctype: 'Sales Invoice',
             filters: {
-                'docstatus': 1,
+                'docstatus': 0,
                 'custom_eims_status': ['in', ['Not Submitted', 'Failed', 'Pending','']]
             },
             fields: ['name'],
