@@ -1,3 +1,6 @@
+from erpnext.accounts import doctype
+
+
 app_name = "ethiotel_pos"
 app_title = "Ethio Telecom POS App"
 app_publisher = "Guba Technology"
@@ -49,6 +52,9 @@ after_install = "ethiotel_pos.workspace_setup.setup_tele_pos_workspace"
 override_doctype_class = {
     "Sales Invoice": "ethiotel_pos.overrides.sales_invoice.CustomSalesInvoice",
 
+}
+doctype_js = {
+    "Sales Invoice": "public/js/sales_invoice.js",
 }
 # include js, css files in header of web template
 # web_include_css = "/assets/ethiotel_pos/css/ethiotel_pos.css"
