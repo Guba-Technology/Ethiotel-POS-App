@@ -563,6 +563,148 @@ select.form-control {
 }
 
 /* =====================================================================
+   9b. CHECKBOX — clean square style
+   ===================================================================== */
+/* Global checkbox reset — prevent form-control styles leaking */
+input[type="checkbox"].form-control,
+input[type="checkbox"].input-with-feedback {
+  min-height: unset !important;
+  height: 18px;
+  width: 18px;
+  padding: 0 !important;
+  border: 1.5px solid var(--sidebar-border-color);
+  border-radius: 4px;
+}
+
+.frappe-control[data-fieldtype="Check"] .checkbox {
+  display: flex;
+  align-items: center;
+  min-height: unset;
+  padding: 4px 0;
+}
+
+.frappe-control[data-fieldtype="Check"] .checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: unset;
+  min-width: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--sidebar-border-color);
+  background: var(--card-bg);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  transition: border-color var(--et-f), background var(--et-f), box-shadow var(--et-f);
+}
+
+.frappe-control[data-fieldtype="Check"] .checkbox input[type="checkbox"]:hover {
+  border-color: var(--primary);
+}
+
+.frappe-control[data-fieldtype="Check"] .checkbox input[type="checkbox"]:focus {
+  box-shadow: 0 0 0 3px rgba(141,198,63,.15);
+}
+
+.frappe-control[data-fieldtype="Check"] .checkbox input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.frappe-control[data-fieldtype="Check"] .checkbox input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 5px;
+  width: 6px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.frappe-control[data-fieldtype="Check"] .checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: unset;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.frappe-control[data-fieldtype="Check"] .checkbox .label-text {
+  font-size: 13px;
+  color: var(--text-color);
+  line-height: 1.4;
+}
+
+/* =====================================================================
+   9c. FORM TABS — sticky floating tab bar
+   ===================================================================== */
+.form-tabs {
+  position: sticky;
+  top: 52px;
+  z-index: 20;
+  background: var(--bg-light-gray);
+  border-bottom: 1px solid var(--sidebar-border-color);
+  padding: 6px 24px 0;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0 0 16px;
+  border-radius: var(--et-r) var(--et-r) 0 0;
+}
+
+.form-tabs .nav-tabs {
+  border-bottom: none;
+  margin-bottom: 0;
+  display: flex;
+  gap: 2px;
+}
+
+.form-tabs .nav-tabs {
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.form-tabs .nav-link {
+  color: #525252 !important;
+  background: #f8f9fa !important;
+  border: 1px solid #e2e8f0 !important;
+  font-weight: 500 !important;
+  padding: 7px 18px !important;
+  font-size: 12.5px !important;
+  border-radius: 6px !important;
+  transition: background var(--et-f), color var(--et-f);
+}
+
+.form-tabs .nav-link:hover {
+  background: #e2e8f0 !important;
+  color: #1A1F24 !important;
+}
+
+.form-tabs .nav-link.active {
+  color: #fff !important;
+  background: #8DC63F !important;
+  border-color: #8DC63F !important;
+  font-weight: 600 !important;
+}
+
+/* Tab content panes — offset for sticky tab bar */
+.form-tabs + .tab-content .tab-pane {
+  scroll-margin-top: 64px;
+}
+
+.tab-content .tab-pane {
+  padding-top: 12px;
+}
+
+/* =====================================================================
    10. TABLES / GRID — Vuetify-style clean tables
    ===================================================================== */
 .table {
@@ -620,8 +762,45 @@ select.form-control {
   font-size: 13px;
 }
 
+/* Grid inline checkbox */
+.grid-static-col input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: unset;
+  min-width: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--sidebar-border-color);
+  background: var(--card-bg);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  position: relative;
+  outline: none;
+  transition: border-color var(--et-f), background var(--et-f);
+}
+
+.grid-static-col input[type="checkbox"]:hover {
+  border-color: var(--primary);
+}
+
+.grid-static-col input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.grid-static-col input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 5px;
+  width: 6px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
 /* =====================================================================
-   11. LIST VIEW — Vuetify-style cards
+   11. LIST VIEW — card/box layout
    ===================================================================== */
 .layout-main-section {
   background: var(--card-bg);
@@ -631,7 +810,6 @@ select.form-control {
   margin-bottom: 20px;
   border: 1px solid var(--sidebar-border-color);
   position: relative;
-  overflow: hidden;
 }
 
 .layout-main-section::before {
@@ -640,6 +818,8 @@ select.form-control {
   top: 0; left: 0;
   width: 100%; height: 3px;
   background: linear-gradient(90deg, var(--primary), var(--et-blue));
+  z-index: 1;
+  pointer-events: none;
 }
 
 .layout-main-section-wrapper {
@@ -650,33 +830,136 @@ select.form-control {
   padding-top: 4px !important;
 }
 
-.list-row-container {
-  border-bottom: 1px solid var(--sidebar-border-color);
-  transition: background var(--et-f);
-  min-height: 48px;
-  display: flex;
-  align-items: center;
+/* 1. Flex grid wrapping for list rows */
+.list-container .list-wrapper,
+.list-container .result-list {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 16px !important;
+  padding: 12px 0 !important;
 }
 
-.list-row-container:hover { background: var(--et-lbg) !important; }
-.list-row-checkbox { accent-color: var(--primary); }
+/* 2. Card boxes with border coloring */
+.list-container .list-row-container {
+  flex: 1 1 calc(33.333% - 16px) !important;
+  min-width: 280px !important;
+  background: #ffffff !important;
+  border: 1px solid var(--sidebar-border-color);
+  border-radius: var(--et-r2) !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,.04) !important;
+  padding: 16px !important;
+  transition: transform var(--et-m), box-shadow var(--et-s) !important;
+}
+
+/* 3. Hover lift */
+.list-container .list-row-container:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,.08) !important;
+  border-color: var(--primary) !important;
+}
+
+/* 4. Stack content vertically inside card */
+.list-container .list-row {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  align-items: flex-start !important;
+  gap: 8px !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+/* 5. Hide table-style column headers */
+.list-container .list-headers {
+  display: none !important;
+}
+
+/* 6. Full-width children inside card */
+.list-container .list-row-col,
+.list-container .level-left,
+.list-container .level-right {
+  width: 100% !important;
+  max-width: 100% !important;
+  flex: none !important;
+  justify-content: flex-start !important;
+}
+
+/* Checkbox stays visible & inline */
+.list-row-checkbox {
+  width: 18px;
+  height: 18px;
+  min-height: unset;
+  border-radius: 4px;
+  border: 1.5px solid var(--sidebar-border-color);
+  background: var(--card-bg);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  outline: none;
+  transition: border-color var(--et-f), background var(--et-f);
+}
+
+.list-row-checkbox:hover {
+  border-color: var(--primary);
+}
+
+.list-row-checkbox:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.list-row-checkbox:checked::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 5px;
+  width: 6px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* List ID link styling inside cards */
+.list-container .list-row .list-id {
+  font-weight: 600;
+  color: var(--heading-color);
+}
+
+.list-container .list-row .list-id a {
+  color: var(--et-blue) !important;
+}
+
+.list-container .list-row .list-id a:hover {
+  color: var(--et-blue2) !important;
+}
+
+/* List view stats header — green-accented gradient */
+.list-view-header {
+  background: linear-gradient(135deg, var(--et-lbg), var(--card-bg));
+  border-bottom: 1px solid var(--sidebar-border-color);
+  padding: 12px 16px;
+  border-radius: var(--et-r) var(--et-r) 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.list-view-header .list-view-title {
+  font-family: var(--et-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--et-lime3);
+}
 
 /* List view filter/toolbar */
 .list-toolbar {
-  background: transparent;
+  background: var(--bg-light-gray);
   border-bottom: 1px solid var(--sidebar-border-color);
-  padding: 6px 0;
+  border-radius: var(--et-r) var(--et-r) 0 0;
+  padding: 8px 16px;
   min-height: 44px;
-  display: flex;
-  align-items: center;
-}
-
-.list-row {
-  padding: 8px 0;
-}
-
-.list-row .level-item {
-  padding: 4px 0;
 }
 
 /* =====================================================================
