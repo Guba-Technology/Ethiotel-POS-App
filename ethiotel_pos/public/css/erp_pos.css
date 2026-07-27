@@ -1,0 +1,1229 @@
+/* =========================================================================
+   Ethio Telecom — Frappe Desk Theme
+   =========================================================================
+   Full visual rebrand of Frappe v15 Desk interface with Ethio Telecom
+   brand colours:
+     Primary   → Lime  #8DC63F
+     Secondary → Blue  #0072BC
+     Accent    → Yellow #FFC20E
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* =====================================================================
+   1.  DESIGN TOKENS — Ethio Telecom brand palette
+   ===================================================================== */
+:root,
+[data-theme="light"] {
+  --et-lime: #8DC63F;  --et-lime2: #72A130;  --et-lime3: #567A24;
+  --et-lbg:  #F3F9EB;
+  --et-blue: #0072BC;  --et-blue2: #005C99;  --et-blue3: #004370;
+  --et-bbg:  #E0F3FF;
+  --et-yel:  #FFC20E;  --et-yel2: #D6A100;
+  --et-ybg:  #FFF9E5;
+  --et-red:  #ED1C24;  --et-red2: #C61016;
+  --et-rbg:  #FDE7E8;
+  --et-grn:  #00965E;
+  --et-gbg:  #E5F7EE;
+  --et-org:  #F57C00;
+  --et-obg:  #FFF3E0;
+
+  --et-bg:       #F0F3F6;
+  --et-surface:  #FFFFFF;
+  --et-alt:      #F6F8FA;
+  --et-hover:    #EDF1F4;
+  --et-ink:      #1A1F24;
+  --et-soft:     #6B7A86;
+  --et-muted:    #9AABB5;
+  --et-line:     #E2E8ED;
+  --et-line2:    #CBD5DC;
+
+  --et-display: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+  --et-body:    'Inter', system-ui, sans-serif;
+  --et-mono:    'JetBrains Mono', monospace;
+
+  --et-r:  6px;
+  --et-r2: 12px;
+  --et-r3: 16px;
+  --et-r4: 24px;
+  --et-pill: 999px;
+
+  --et-s1: 0 1px 2px rgba(26,31,36,.04);
+  --et-s2: 0 4px 12px rgba(26,31,36,.06);
+  --et-s3: 0 12px 40px rgba(26,31,36,.10);
+  --et-s4: 0 24px 64px rgba(26,31,36,.14);
+
+  --et-f:  120ms cubic-bezier(.25,.46,.45,.94);
+  --et-m:  220ms cubic-bezier(.25,.46,.45,.94);
+  --et-s:  350ms cubic-bezier(.25,.46,.45,.94);
+}
+
+/* =====================================================================
+   2.  FRAPPE THEME VARIABLE OVERRIDES
+       These are the CSS custom properties Frappe v15 uses for theming.
+       They get set dynamically by frappe.js; we override them here.
+   ===================================================================== */
+[data-theme="light"] {
+  --primary: #8DC63F;
+  --primary-color: #8DC63F;
+  --primary-light: #F3F9EB;
+  --btn-primary-bg: #8DC63F;
+  --btn-primary: #72A130;
+
+  --bg-color: #F0F3F6;
+  --fg-color: #FFFFFF;
+  --card-bg: #FFFFFF;
+  --bg-light-gray: #F6F8FA;
+  --bg-gray: #EDF1F4;
+
+  --text-color: #1A1F24;
+  --text-muted: #6B7A86;
+  --text-light: #9AABB5;
+  --heading-color: #1A1F24;
+
+  --navbar-bg: #8DC63F;
+  --navbar-color: #FFFFFF;
+  --navbar-height: 52px;
+
+  --sidebar-bg: #FFFFFF;
+  --sidebar-color: #1A1F24;
+  --sidebar-select-color: #F3F9EB;
+  --sidebar-hover-color: #EDF1F4;
+  --sidebar-border-color: #E2E8ED;
+
+  --border-color: #E2E8ED;
+  --border-radius: 6px;
+  --border-radius-sm: 4px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 16px;
+
+  --control-bg: #F6F8FA;
+  --control-bg-on-gray: #EDF1F4;
+  --awesome-bar-bg: #F6F8FA;
+
+  --shadow-base: 0 1px 2px rgba(26,31,36,.04);
+  --shadow-sm: 0 1px 3px rgba(26,31,36,.06);
+  --shadow-md: 0 4px 12px rgba(26,31,36,.06);
+  --shadow-lg: 0 12px 40px rgba(26,31,36,.10);
+
+  --error-bg: #FDE7E8;
+  --error-color: #ED1C24;
+  --success-bg: #E5F7EE;
+  --success-color: #00965E;
+  --warning-bg: #FFF9E5;
+  --warning-color: #7A5A00;
+  --info-bg: #E0F3FF;
+  --info-color: #004370;
+
+  --font-stack: 'Inter', system-ui, sans-serif;
+  --text-base: 13.5px;
+}
+
+/* =====================================================================
+   3.  BASE
+   ===================================================================== */
+html {
+  background-color: var(--bg-color) !important;
+}
+
+body {
+  background: linear-gradient(180deg, var(--bg-color), var(--et-alt)) !important;
+  background-attachment: fixed;
+  font-family: var(--et-body);
+  color: var(--text-color);
+  font-size: 13.5px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: var(--et-lbg); color: var(--et-lime3); }
+
+a, .text-primary { color: var(--et-blue); }
+a:hover { color: var(--et-blue2); }
+
+h1, h2, h3, h4, h5, h6,
+.page-title, .workspace-title, .widget-title, .modal-title {
+  font-family: var(--et-display) !important;
+  font-weight: 700;
+  letter-spacing: -.015em;
+  color: var(--heading-color);
+}
+
+/* =====================================================================
+   4.  NAVBAR — Ethio Telecom green brand bar
+   ===================================================================== */
+.navbar {
+  background: var(--navbar-bg) !important;
+  height: 52px;
+  padding: 0 20px;
+  box-shadow: 0 2px 8px rgba(141,198,63,.25);
+  border-bottom: none !important;
+}
+
+.navbar .navbar-brand,
+.navbar .app-name {
+  font-family: var(--et-display) !important;
+  font-weight: 800;
+  font-size: .95rem;
+  color: #FFFFFF !important;
+  letter-spacing: -.01em;
+}
+
+.navbar a, .navbar .icon { color: rgba(255,255,255,.8) !important; }
+.navbar a:hover { color: #FFFFFF !important; }
+
+.navbar .navbar-header .navbar-right > * { color: rgba(255,255,255,.8) !important; }
+.navbar .navbar-header .navbar-right > *:hover { color: #FFFFFF !important; }
+
+/* Awesome bar inside navbar — white bg on green */
+.awesome-bar {
+  background: transparent !important;
+}
+
+.search-bar .awesomplete input {
+  background: #FFFFFF !important;
+  border: 1px solid rgba(255,255,255,.3) !important;
+  border-radius: var(--et-r) !important;
+  font-size: 13px;
+  padding: 7px 14px;
+  min-height: 36px;
+  color: #1A1F24;
+}
+
+.search-bar .awesomplete input::placeholder {
+  color: #9AABB5;
+}
+
+.search-bar .awesomplete input:focus {
+  border-color: var(--et-lime2) !important;
+  box-shadow: 0 0 0 3px rgba(255,255,255,.2) !important;
+}
+
+/* =====================================================================
+   5.  SIDEBAR — Vuetify-style navigation drawer
+   ===================================================================== */
+.sidebar-container {
+  background: var(--sidebar-bg) !important;
+  border: none !important;
+  padding-top: 4px;
+}
+
+.sidebar-item-container {
+  margin: 2px 8px;
+}
+
+.sidebar-item {
+  border-radius: var(--et-r) !important;
+  padding: 8px 16px !important;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-muted);
+  transition: background var(--et-m), color var(--et-m);
+  background: transparent;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-item:hover {
+  background: var(--sidebar-hover-color) !important;
+  color: var(--text-color) !important;
+}
+
+.sidebar-item-container.selected > .sidebar-item {
+  background: var(--sidebar-select-color) !important;
+  border-left: none !important;
+  color: var(--et-lime3) !important;
+  font-weight: 600 !important;
+  box-shadow: inset 0 0 0 1px rgba(141,198,63,.2);
+}
+
+.sidebar-item-icon {
+  margin-right: 10px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* =====================================================================
+   6.  PAGE HEADER — clean Vuetify-style header
+   ===================================================================== */
+.page-head {
+  border: none !important;
+  background: transparent !important;
+  padding: 16px 0 8px !important;
+}
+
+.page-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--et-blue3);
+  letter-spacing: -.02em;
+}
+
+.breadcrumb { background: transparent; padding: 0; font-size: 12px; margin-bottom: 4px; }
+.breadcrumb a { color: var(--text-muted); }
+.breadcrumb a:hover { color: var(--et-lime2); text-decoration: none; }
+
+/* =====================================================================
+   7.  WORKSPACES
+   ===================================================================== */
+.workspace-container {
+  background: var(--bg-color);
+}
+
+.workspace-sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border-color);
+}
+
+.workspace-sidebar .sidebar-item:hover {
+  background: var(--sidebar-hover-color);
+  color: var(--et-lime3);
+}
+
+.workspace-sidebar .sidebar-item.active {
+  background: var(--sidebar-select-color);
+  color: var(--et-lime3);
+  border-left: 3px solid var(--primary);
+  font-weight: 600;
+}
+
+.workspace-content {
+  background: var(--bg-color);
+}
+
+/* Workspace page header section */
+.workspace-page-header {
+  background: linear-gradient(135deg, var(--et-lbg), var(--card-bg));
+  border-radius: var(--et-r3);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  border: 1px solid var(--sidebar-border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Workspace section headers */
+.workspace-section-header {
+  font-family: var(--et-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--heading-color);
+  padding: 8px 0;
+  margin-bottom: 12px;
+  border-bottom: 2px solid var(--primary);
+  display: inline-block;
+}
+
+/* Workspace module cards */
+.workspace-module-card {
+  background: var(--card-bg);
+  border: 1px solid var(--sidebar-border-color);
+  border-radius: var(--et-r2);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--et-m), box-shadow var(--et-s);
+  overflow: hidden;
+}
+
+.workspace-module-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+.workspace-module-card .module-card-header {
+  padding: 16px 20px 12px;
+  background: linear-gradient(135deg, var(--et-lbg), var(--card-bg));
+  border-bottom: 1px solid var(--sidebar-border-color);
+}
+
+.workspace-module-card .module-card-body {
+  padding: 12px 20px 16px;
+}
+
+.widget.shortcut-widget-box,
+.widget-group .widget {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--sidebar-border-color) !important;
+  border-radius: var(--et-r2) !important;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--et-m), box-shadow var(--et-s), border-color var(--et-m);
+  padding: 16px 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.widget.shortcut-widget-box::before,
+.widget-group .widget::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--et-blue));
+}
+
+.widget.shortcut-widget-box:hover,
+.widget-group .widget:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary) !important;
+}
+
+/* Number cards / stat cards: tinted background */
+.widget.number-widget-box {
+  background: linear-gradient(135deg, var(--et-lbg), var(--card-bg)) !important;
+}
+
+.widget.number-widget-box .widget-value {
+  color: var(--et-lime3) !important;
+  font-weight: 800;
+}
+
+/* Shortcut icons: green circle background */
+.widget.shortcut-widget-box .widget-icon {
+  background: var(--et-lbg);
+  border-radius: var(--et-r2);
+  width: 42px; height: 42px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.widget.shortcut-widget-box .widget-icon .icon {
+  color: var(--et-lime2) !important;
+}
+
+/* Quick list / recent items: light tint */
+.widget.recent-widget-box,
+.widget.list-widget-box {
+  background: linear-gradient(135deg, var(--card-bg), var(--et-alt)) !important;
+}
+
+.widget-group .widget .widget-body {
+  padding: 8px 0;
+}
+
+.widget.shortcut-widget-box .widget-body {
+  padding: 4px 0;
+}
+
+/* Chart widget: card accent */
+.widget.chart-widget-box {
+  background: var(--card-bg) !important;
+}
+
+/* Welcome / onboarding widgets */
+.widget.onboarding-widget-box {
+  background: linear-gradient(135deg, var(--et-bbg), var(--card-bg)) !important;
+  border-color: var(--et-blue) !important;
+}
+
+.widget.onboarding-widget-box .widget-title {
+  color: var(--et-blue3) !important;
+}
+
+/* =====================================================================
+   8.  BUTTONS — Vuetify-style elevated buttons
+   ===================================================================== */
+.btn {
+  border-radius: var(--et-r) !important;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 20px;
+  transition: all var(--et-f);
+  letter-spacing: .01em;
+  text-transform: none;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn:active { transform: scale(.97); }
+
+.btn-primary {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 6px rgba(141,198,63,.25);
+}
+
+.btn-primary:hover {
+  background: var(--et-lime2) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(141,198,63,.35);
+}
+
+.btn-secondary {
+  background: var(--card-bg) !important;
+  border-color: var(--sidebar-border-color) !important;
+  color: var(--text-color);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-light-gray) !important;
+  border-color: var(--text-muted) !important;
+}
+
+.btn-danger { background: var(--et-red) !important; border-color: var(--et-red) !important; }
+.btn-success { background: var(--et-grn) !important; border-color: var(--et-grn) !important; }
+
+.btn-outline-primary {
+  color: var(--et-lime2) !important;
+  border-color: var(--primary) !important;
+  background: transparent !important;
+}
+
+.btn-outline-primary:hover {
+  background: var(--et-lbg) !important;
+  box-shadow: 0 0 0 3px rgba(141,198,63,.15);
+}
+
+.btn-sm {
+  font-size: 12px;
+  padding: 6px 14px;
+  min-height: 30px;
+}
+
+.btn-xs {
+  font-size: 11px;
+  padding: 4px 10px;
+  min-height: 26px;
+}
+
+/* =====================================================================
+   9.  FORM CONTROLS — Vue/Vuetify-style inputs
+   ===================================================================== */
+.form-control,
+.input-with-feedback,
+select.form-control {
+  border-radius: var(--et-r) !important;
+  border: 1.5px solid var(--sidebar-border-color) !important;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  color: var(--text-color);
+  background: var(--card-bg);
+  transition: border-color var(--et-m), box-shadow var(--et-m);
+  min-height: 42px;
+  line-height: 1.5;
+}
+
+.form-control:hover { border-color: var(--et-line2) !important; }
+
+.form-control:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(141,198,63,.15) !important;
+}
+
+.form-control::placeholder,
+.input-with-feedback::placeholder {
+  color: var(--text-light);
+  font-size: 13px;
+}
+
+.form-control[type="text"]::placeholder,
+.form-control[type="search"]::placeholder {
+  opacity: 1;
+}
+
+textarea.form-control {
+  min-height: 80px;
+  padding: 12px 14px;
+}
+
+.frappe-control .control-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 6px;
+}
+
+.frappe-control {
+  margin-bottom: 6px;
+}
+
+/* Vuetify-style dense variant for inline/compact fields */
+.input-group {
+  min-height: 42px;
+}
+
+.input-group .form-control {
+  min-height: 42px;
+}
+
+/* Select fields */
+select.form-control {
+  min-height: 42px;
+  padding: 8px 14px;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7A86' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+/* =====================================================================
+   10. TABLES / GRID — Vuetify-style clean tables
+   ===================================================================== */
+.table {
+  border: 1px solid var(--sidebar-border-color);
+  border-radius: var(--et-r2);
+  overflow: hidden;
+}
+
+.table thead th {
+  background: var(--bg-light-gray);
+  font-family: var(--et-display);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--sidebar-border-color);
+  padding: 12px 16px;
+}
+
+.table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--sidebar-border-color);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover td { background: var(--et-lbg); }
+
+.grid-heading-row {
+  background: var(--bg-light-gray) !important;
+  border-bottom: 1px solid var(--sidebar-border-color) !important;
+  min-height: 44px;
+}
+
+.grid-heading-row .grid-static-col {
+  font-family: var(--et-display);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  padding: 10px 12px;
+}
+
+.grid-row {
+  min-height: 40px;
+}
+
+.grid-row:hover { background: var(--et-lbg) !important; }
+
+.grid-static-col {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+/* =====================================================================
+   11. LIST VIEW — Vuetify-style cards
+   ===================================================================== */
+.layout-main-section {
+  background: var(--card-bg);
+  border-radius: var(--et-r3);
+  box-shadow: var(--shadow-md);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  border: 1px solid var(--sidebar-border-color);
+  position: relative;
+  overflow: hidden;
+}
+
+.layout-main-section::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--et-blue));
+}
+
+.layout-main-section-wrapper {
+  margin-bottom: 20px;
+}
+
+.page-content {
+  padding-top: 4px !important;
+}
+
+.list-row-container {
+  border-bottom: 1px solid var(--sidebar-border-color);
+  transition: background var(--et-f);
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+}
+
+.list-row-container:hover { background: var(--et-lbg) !important; }
+.list-row-checkbox { accent-color: var(--primary); }
+
+/* List view filter/toolbar */
+.list-toolbar {
+  background: transparent;
+  border-bottom: 1px solid var(--sidebar-border-color);
+  padding: 6px 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.list-row {
+  padding: 8px 0;
+}
+
+.list-row .level-item {
+  padding: 4px 0;
+}
+
+/* =====================================================================
+   12. MODALS — Vuetify-style dialogs
+   ===================================================================== */
+.modal-backdrop {
+  background: rgba(0,37,64,.55) !important;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  border: none !important;
+  border-radius: var(--et-r4) !important;
+  box-shadow: var(--et-s4), 0 0 0 1px rgba(255,255,255,.08) !important;
+  overflow: hidden;
+  position: relative;
+  background: var(--card-bg) !important;
+}
+
+.modal-content::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary), var(--et-blue), var(--et-yel));
+  z-index: 5;
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--sidebar-border-color) !important;
+  padding: 20px 28px 16px;
+}
+
+.modal-header .modal-title {
+  font-size: 1.1rem;
+}
+
+.modal-header .close {
+  width: 32px; height: 32px;
+  border-radius: var(--et-pill);
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none;
+  font-size: 18px; color: var(--text-muted);
+  transition: background var(--et-f), transform var(--et-f);
+}
+
+.modal-header .close:hover {
+  background: var(--sidebar-hover-color);
+  transform: rotate(90deg);
+  color: var(--text-color);
+}
+
+.modal-body {
+  padding: 24px 28px;
+}
+
+.modal-footer {
+  border-top: 1px solid var(--sidebar-border-color) !important;
+  padding: 16px 28px;
+  gap: 8px;
+}
+
+.modal.fade .modal-dialog {
+  transform: scale(.92) translateY(20px);
+  opacity: 0;
+  transition: transform var(--et-s) cubic-bezier(.25,.46,.45,.94), opacity var(--et-m);
+}
+
+.modal.show .modal-dialog {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+/* Vuetify-style small confirm dialogs */
+.modal-sm .modal-content {
+  border-radius: var(--et-r3) !important;
+}
+.modal-sm .modal-body {
+  padding: 28px 32px;
+  text-align: center;
+}
+.modal-sm .modal-footer {
+  justify-content: center;
+  padding: 16px 32px 24px;
+  gap: 12px;
+}
+
+/* =====================================================================
+   13. ALERTS / TOASTS
+   ===================================================================== */
+.desk-alert, .alert {
+  border-radius: var(--et-r2) !important;
+  box-shadow: var(--et-s3);
+  border: none !important;
+  padding: 14px 20px;
+  font-weight: 500;
+  animation: etSlide 0.3s ease;
+}
+
+.alert-primary { background: var(--et-lbg) !important; color: var(--et-lime3) !important; border-left: 3px solid var(--primary) !important; }
+.alert-danger  { background: var(--et-rbg) !important; color: var(--et-red) !important; border-left: 3px solid var(--et-red) !important; }
+.alert-success { background: var(--et-gbg) !important; color: var(--et-grn) !important; border-left: 3px solid var(--et-grn) !important; }
+.alert-warning { background: var(--et-ybg) !important; color: #7A5A00 !important; border-left: 3px solid var(--et-yel) !important; }
+
+@keyframes etSlide {
+  from { opacity: 0; transform: translateY(-10px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* =====================================================================
+   14. BADGES / INDICATORS
+   ===================================================================== */
+.indicator-pill {
+  font-family: var(--et-mono) !important;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: var(--et-pill);
+}
+
+.indicator-pill.green, .indicator-pill.success { background: var(--et-lbg) !important; color: var(--et-lime3) !important; }
+.indicator-pill.red, .indicator-pill.danger { background: var(--et-rbg) !important; color: var(--et-red) !important; }
+.indicator-pill.blue, .indicator-pill.info { background: var(--et-bbg) !important; color: var(--et-blue3) !important; }
+.indicator-pill.yellow, .indicator-pill.warning { background: var(--et-ybg) !important; color: #7A5A00 !important; }
+.indicator-pill.gray, .indicator-pill.secondary { background: var(--sidebar-hover-color) !important; color: var(--text-muted) !important; }
+.indicator-pill.orange { background: var(--et-obg) !important; color: var(--et-org) !important; }
+
+/* =====================================================================
+   15. DROPDOWNS
+   ===================================================================== */
+.dropdown-menu {
+  border: 1px solid var(--sidebar-border-color) !important;
+  border-radius: var(--et-r2) !important;
+  box-shadow: var(--et-s3) !important;
+  padding: 6px !important;
+  background: var(--card-bg) !important;
+  animation: etDrop 0.12s ease;
+}
+
+@keyframes etDrop {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-menu > li > a {
+  border-radius: var(--et-r);
+  padding: 7px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-color);
+  transition: background var(--et-f), padding var(--et-f);
+}
+
+.dropdown-menu > li > a:hover {
+  background: var(--et-lbg);
+  padding-left: 16px;
+  color: var(--et-lime3);
+  text-decoration: none;
+}
+
+/* Awesome bar dropdown */
+.awesomplete > ul {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--sidebar-border-color) !important;
+  border-radius: var(--et-r2) !important;
+  box-shadow: var(--et-s3) !important;
+  padding: 6px !important;
+}
+
+.awesomplete > ul > li {
+  color: var(--text-color) !important;
+  background: transparent !important;
+  border-radius: var(--et-r) !important;
+  padding: 7px 12px !important;
+  font-size: 12.5px !important;
+  cursor: pointer !important;
+}
+
+.awesomplete > ul > li a,
+.awesomplete > ul > li .awesomplete-item,
+.awesomplete > ul > li .awesomplete-item strong,
+.awesomplete > ul > li .awesomplete-item span {
+  color: var(--text-color) !important;
+  text-decoration: none;
+}
+
+.awesomplete > ul > li:hover,
+.awesomplete > ul > li[aria-selected="true"] {
+  background: var(--et-lbg) !important;
+  color: var(--et-lime3) !important;
+}
+
+.awesomplete > ul > li:hover a,
+.awesomplete > ul > li[aria-selected="true"] a {
+  color: var(--et-lime3) !important;
+}
+
+.awesomplete > ul > li .awesomplete-item-description {
+  color: var(--text-muted) !important;
+  font-size: 11px !important;
+}
+
+.awesomplete > ul > li:hover .awesomplete-item-description,
+.awesomplete > ul > li[aria-selected="true"] .awesomplete-item-description {
+  color: var(--et-lime3) !important;
+}
+
+/* =====================================================================
+   16. TABS
+   ===================================================================== */
+.nav-tabs { border-bottom: 1px solid var(--sidebar-border-color); }
+
+.nav-tabs > li > a {
+  border: none !important;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  padding: 9px 16px;
+  position: relative;
+  transition: color var(--et-f);
+}
+
+.nav-tabs > li > a::after {
+  content: "";
+  position: absolute;
+  bottom: 0; left: 16px; right: 16px;
+  height: 2.5px;
+  background: var(--primary);
+  border-radius: 2px 2px 0 0;
+  transform: scaleX(0);
+  transition: transform var(--et-m);
+}
+
+.nav-tabs > li.active > a, .nav-tabs > li > a:hover { color: var(--et-lime3) !important; }
+.nav-tabs > li.active > a::after { transform: scaleX(1); }
+.nav-tabs > li > a:hover::after { transform: scaleX(.5); }
+
+/* =====================================================================
+   17. PAGINATION
+   ===================================================================== */
+.pagination > li > a, .pagination > li > span {
+  border: 1px solid var(--sidebar-border-color);
+  color: var(--text-color);
+  border-radius: var(--et-r) !important;
+  margin: 0 2px;
+  font-weight: 500;
+}
+
+.pagination > li.active > a, .pagination > li.active > span {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #fff !important;
+}
+
+/* =====================================================================
+   18. SCROLLBAR
+   ===================================================================== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--text-light); border-radius: var(--et-pill); }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+* { scrollbar-width: thin; scrollbar-color: var(--text-light) transparent; }
+
+/* =====================================================================
+   19. FOCUS
+   ===================================================================== */
+:focus-visible {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: 2px;
+}
+
+/* =====================================================================
+   20. FORM SECTIONS
+   ===================================================================== */
+.form-section { margin-bottom: 28px; }
+
+.form-section .section-head {
+  background: transparent;
+  border-bottom: 1px solid var(--sidebar-border-color);
+  padding: 0 0 12px;
+  margin-bottom: 20px;
+  padding-left: 12px;
+  position: relative;
+}
+
+.form-section .section-head::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 2px; bottom: 12px;
+  width: 3px;
+  background: var(--primary);
+  border-radius: 2px;
+}
+
+.form-section .section-head .section-head-text {
+  font-family: var(--et-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--heading-color);
+}
+
+/* =====================================================================
+   21. TIMELINE
+   ===================================================================== */
+.timeline-item {
+  border-left: 2px solid var(--sidebar-border-color);
+  padding: 0 0 20px 20px;
+  position: relative;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: -5px; top: 5px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid var(--card-bg);
+}
+
+/* =====================================================================
+   22. PROGRESS
+   ===================================================================== */
+.progress {
+  border-radius: var(--et-pill);
+  background: var(--sidebar-hover-color);
+  height: 8px;
+}
+
+.progress-bar {
+  background: linear-gradient(90deg, var(--primary), var(--et-blue));
+  border-radius: var(--et-pill);
+}
+
+/* =====================================================================
+   23. PANEL / CARD
+   ===================================================================== */
+.panel {
+  border: 1px solid var(--sidebar-border-color);
+  border-radius: var(--et-r2);
+  box-shadow: var(--shadow-sm);
+  background: var(--card-bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--et-blue));
+}
+
+.panel-head {
+  background: var(--bg-light-gray);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--sidebar-border-color);
+  font-weight: 600;
+}
+
+/* =====================================================================
+   24. TAGIT
+   ===================================================================== */
+.tagit {
+  border: 1.5px solid var(--sidebar-border-color) !important;
+  border-radius: var(--et-r) !important;
+}
+.tagit .tagit-choice {
+  background: var(--et-lbg) !important;
+  border: 1px solid var(--primary) !important;
+  border-radius: var(--et-r) !important;
+  color: var(--et-lime3) !important;
+}
+
+/* =====================================================================
+   25. UTILITY TEXT
+   ===================================================================== */
+.text-muted { color: var(--text-muted) !important; }
+.text-primary { color: var(--et-lime3) !important; }
+.text-success { color: var(--et-grn) !important; }
+.text-danger { color: var(--et-red) !important; }
+.text-warning { color: #7A5A00 !important; }
+
+/* =====================================================================
+   26. REPORT PAGE
+   ===================================================================== */
+.report-page {
+  background: var(--bg-color);
+}
+
+.report-result {
+  border: 1px solid var(--sidebar-border-color);
+  border-radius: var(--et-r2);
+  background: var(--card-bg);
+  overflow: hidden;
+}
+
+/* =====================================================================
+   27. FRAPPE CARD
+   ===================================================================== */
+.frappe-card {
+  background: var(--card-bg);
+  border: 1px solid var(--sidebar-border-color);
+  border-radius: var(--et-r3);
+  box-shadow: var(--shadow-md);
+  padding: 20px 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.frappe-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--et-blue), var(--et-yel));
+}
+
+/* Section cards with header background */
+.frappe-card .card-head {
+  background: var(--bg-light-gray);
+  margin: -20px -24px 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--sidebar-border-color);
+}
+
+.frappe-card .card-head .card-title {
+  font-family: var(--et-display);
+  font-weight: 700;
+  color: var(--heading-color);
+}
+
+/* =====================================================================
+   29. CHART
+   ===================================================================== */
+.chart-container {
+  background: var(--card-bg);
+  border-radius: var(--et-r2);
+  padding: 16px;
+}
+
+/* =====================================================================
+   30. PAGE BUILDER / FORM BUILDER
+   ===================================================================== */
+.page-builders .page-builder-item {
+  border: 1px solid var(--sidebar-border-color);
+  border-radius: var(--et-r);
+  background: var(--card-bg);
+}
+
+/* =====================================================================
+   31. POSAwesome overrides (scoped, won't affect desk)
+   ===================================================================== */
+.posapp,
+body[data-page-route="posapp"] {
+  --v-theme-primary: 141, 198, 63;
+  --v-theme-secondary: 0, 114, 188;
+  --v-theme-accent: 255, 194, 14;
+  --v-theme-success: 0, 150, 94;
+  --v-theme-info: 0, 114, 188;
+  --v-theme-warning: 255, 194, 14;
+  --v-theme-error: 237, 28, 36;
+  --v-theme-background: 240, 243, 246;
+  --v-theme-surface: 255, 255, 255;
+  --v-theme-on-primary: 255, 255, 255;
+  --v-theme-on-secondary: 255, 255, 255;
+  --v-theme-on-surface: 26, 31, 36;
+  --v-theme-on-background: 26, 31, 36;
+
+  --pos-primary: #8DC63F;
+  --pos-primary-variant: #72A130;
+  --pos-primary-container: #F3F9EB;
+  --pos-on-primary: #ffffff;
+  --pos-secondary: #0072BC;
+  --pos-secondary-variant: #005C99;
+  --pos-secondary-container: #E0F3FF;
+  --pos-on-secondary: #ffffff;
+  --pos-accent: #FFC20E;
+  --pos-accent-variant: #D6A100;
+  --pos-success: #00965E;
+  --pos-error: #ED1C24;
+  --pos-warning: #FFC20E;
+  --pos-info: #0072BC;
+  --pos-bg-secondary: #F0F3F6;
+  --pos-card-bg: #ffffff;
+  --pos-text-primary: #1A1F24;
+  --pos-text-secondary: #6B7A86;
+  --pos-border: rgba(0, 0, 0, 0.10);
+  --pos-divider: #E2E8ED;
+  --pos-hover-bg: rgba(141, 198, 63, 0.06);
+}
+
+body[data-page-route="posapp"] .v-btn--color-primary {
+  background-color: var(--pos-primary) !important;
+  color: #fff !important;
+}
+
+body[data-page-route="posapp"] .v-btn--color-secondary {
+  background-color: var(--pos-secondary) !important;
+  color: #fff !important;
+}
+
+/* =====================================================================
+   32. DARK MODE support
+   ===================================================================== */
+@media (prefers-color-scheme: dark) {
+  [data-theme="light"] {
+    --bg-color: #0F171E;
+    --fg-color: #1A2530;
+    --card-bg: #1A2530;
+    --bg-light-gray: #24303D;
+    --bg-gray: #2C3A49;
+    --text-color: #E8EDF0;
+    --text-muted: #9AABBB;
+    --text-light: #6B7D8F;
+    --heading-color: #E8EDF0;
+    --navbar-bg: #6A9E2E;
+    --sidebar-bg: #1A2530;
+    --sidebar-hover-color: #2C3A49;
+    --sidebar-border-color: #2A3846;
+    --border-color: #2A3846;
+    --control-bg: #24303D;
+    --awesome-bar-bg: #24303D;
+  }
+
+  .navbar {
+    background: var(--navbar-bg) !important;
+  }
+
+  .search-bar .awesomplete input {
+    background: #1A2530 !important;
+    border-color: #2A3846 !important;
+    color: #E8EDF0 !important;
+  }
+
+  .search-bar .awesomplete input::placeholder {
+    color: #6B7D8F !important;
+  }
+
+  body[data-page-route="posapp"],
+  .posapp {
+    --pos-bg-secondary: #0F171E;
+    --pos-card-bg: #1A2530;
+    --pos-text-primary: #E8EDF0;
+    --pos-text-secondary: #9AABBB;
+    --pos-divider: #2A3846;
+    --pos-border: rgba(255, 255, 255, 0.10);
+  }
+}

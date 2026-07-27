@@ -39,14 +39,21 @@ fixtures = [{
 # include js, css files in header of desk.html
 # app_include_css = "/assets/ethiotel_pos/css/ethiotel_pos.css"
 # app_include_js = "/assets/ethiotel_pos/js/ethiotel_pos.js"
-app_include_css = "/assets/ethiotel_pos/css/ethiotel_branding.css"
+app_include_css = [
+    "/assets/ethiotel_pos/css/ethiotel_branding.css",
+    "/assets/ethiotel_pos/css/erp_pos.css"
+]
 app_include_js = [
     "/assets/ethiotel_pos/js/navbar_main.js",
-    "/assets/ethiotel_pos/js/navbar_drawer.js"
+    "/assets/ethiotel_pos/js/navbar_drawer.js",
+    "/assets/ethiotel_pos/js/erp_pos.js"
 ]
 
 # Add or update the after_migrate hook
-after_migrate = "ethiotel_pos.workspace_setup.setup_tele_pos_workspace"
+after_migrate = [
+    "ethiotel_pos.workspace_setup.setup_tele_pos_workspace",
+    "ethiotel_pos.prunning.run"
+]
 after_install = "ethiotel_pos.workspace_setup.setup_tele_pos_workspace"
 
 override_doctype_class = {
