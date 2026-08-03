@@ -10,7 +10,7 @@ from frappe import _
 
 # Configuration
 ALLOWED_WORKSPACES = [
-    "Home", "Selling", "Tele POS"]
+    "Selling", "Tele POS"]
 
 HIDDEN_BY_DEFAULT = ["CRM","POS Awesome", "Quality Management", "Quality", "Projects", "Assets", "Manufacturing"]
 MANIFEST_FILE = "lite_mode_lock_manifest.json"
