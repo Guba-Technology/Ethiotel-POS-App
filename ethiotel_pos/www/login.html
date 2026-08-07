@@ -1,0 +1,196 @@
+
+{% extends "templates/web.html" %}
+
+{% block head_include %}
+{{ include_style('login.bundle.css') }}
+<link rel="stylesheet" href="/assets/frappe/css/fonts/fontawesome/font-awesome.min.css">
+<link rel="stylesheet" href="/assets/ethiotel_pos/css/ethiotel_login.css">
+{% endblock %}
+
+{% macro ethiotel_login_body() -%}
+<div class="page-card-body">
+	<div class="form-group">
+		<label class="sr-only" for="login_email">{{ login_label or _("Email")}}</label>
+		<div class="email-field">
+			<input type="text" id="login_email" class="form-control"
+				placeholder="{% if login_name_placeholder %}{{ login_name_placeholder  }}{% else %}{{ _('Email') }}{% endif %}"
+				required autofocus autocomplete="username">
+		</div>
+	</div>
+
+	<div class="form-group">
+		<label class="sr-only" for="login_password">{{ _("Password") }}</label>
+		<div class="password-field">
+			<input type="password" id="login_password" class="form-control" placeholder="{{ _('Password') }}"
+				autocomplete="current-password" required>
+			<span toggle="#login_password" class="toggle-password">{{ _('Show') }}</span>
+		</div>
+	</div>
+
+	{% if not disable_user_pass_login %}
+	<p class="forgot-password-message">
+		<a href="#forgot">{{ _("Forgot Password?") }}</a>
+	</p>
+	{% endif %}
+</div>
+
+<div class="page-card-actions">
+	{% if not disable_user_pass_login %}
+	<button class="btn btn-primary btn-block btn-login" type="submit">
+		{{ _("Log In") }}</button>
+	{% endif %}
+	{% if ldap_settings and ldap_settings.enabled %}
+	<button class="btn btn-primary btn-block btn-login btn-ldap-login">
+		{{ _("Login with LDAP") }}</button>
+	{% endif %}
+</div>
+{% endmacro %}
+
+{% macro ethiotel_logo() %}
+<div class="auth-logo-wrap">
+	<img class="app-logo" src="{{ logo }}" alt="{{ app_name or _("App Logo") }}" onerror="this.style.display='none'" />
+	<div class="auth-brand-text">
+		<h1 style="color: white;"><b>{{ app_name or "ethiotel Invoice" }}</b></h1>
+	</div>
+</div>
+{% endmacro %}
+
+{% block page_content %}
+<section class='for-login'>
+	<div class="container-fluid login-window">
+		<div class="row">
+			<!-- LEFT : green gradient + features (mirrors EIMS #background-section) -->
+			<div class="col-xs-12 col-lg-5" id="form-section">
+				{{ ethiotel_logo() }}
+				<div id="auth-form">
+					<form class="form-signin form-login" role="form" novalidate>
+						{{ ethiotel_login_body() }}
+						{% if not disable_signup and not disable_user_pass_login %}
+						<p class="sign-up-message text-center">
+							{{ _("Don't have an account?") }}
+							<a href="#signup"><b>{{ _("Sign Up") }}</b></a>
+						</p>
+						{% endif %}
+					</form>
+					<div id="divLoginInfo">{# server messages land here #}</div>
+				</div>
+			</div>
+
+			<div class="col-lg-7 d-none d-lg-flex" id="background-section">
+				<div id="background-content">
+					<img src="/assets/ethiotel_pos/images/ethiotel-logo.png"
+						alt="ethiotel Invoice Logo" id="imgBusinessLogon" class="brand-image img-circle elevation-3 imgCustom200pxCircle"
+						onerror="this.style.visibility='hidden'" />
+					<p id="background-tagline">{{ page_tagline or _("Sales, purchases, inventory, and VAT-ready invoicing - all in one place.") }}</p>
+					<div id="background-features">
+						<div class="background-feature"><i class="fa fa-file-invoice-dollar" aria-hidden="true"></i><span>Invoicing &amp; POS</span></div>
+						<div class="background-feature"><i class="fa fa-boxes" aria-hidden="true"></i><span>Inventory tracking</span></div>
+						<div class="background-feature"><i class="fa fa-chart-line" aria-hidden="true"></i><span>Sales reports</span></div>
+					</div>
+				</div>
+				<!-- <div id="background-signin-link">
+					<a href="/login"><b>Or sign in as a different user</b></a>
+				</div> -->
+			</div>
+		</div>
+	</div>
+</section>
+
+<section class='for-email-login'>
+	<div class="container">
+		{{ ethiotel_logo() }}
+		<div class="page-card text-center">
+			{{ ethiotel_login_body() }}
+		</div>
+	</div>
+</section>
+
+{% if not disable_signup %}
+<section class='for-signup {{ "signup-disabled" if disable_signup else "" }}'>
+	<div class="container">
+		<div class="row">
+			<div class="col-lg-5 card mx-auto">
+				{{ ethiotel_logo() }}
+				<h4 class="text-center text-muted">{{ _("Create a {0} Account").format(app_name or "ethiotel Invoice") }}</h4>
+				<div class="page-card-body">
+					{%- if not disable_signup -%}
+					{{ signup_form_template }}
+					{%- else -%}
+					<div class='page-card-head mb-2'>
+						<span class='indicator gray'>{{_("Signup Disabled")}}</span>
+						<p class="text-muted text-normal sign-up-message mt-1 mb-8">{{_("Signups have been disabled for this website.")}}</p>
+						<div><a href='/' class='btn btn-primary btn-md'>{{ _("Home") }}</a></div>
+					</div>
+					{%- endif -%}
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+{% endif %}
+
+<section class='for-forgot'>
+	<div class="container">
+		<div class="row">
+			<div class="col-lg-5 card mx-auto">
+				{{ ethiotel_logo() }}
+				<div class="page-card">
+					<form class="form-signin form-forgot" role="form" novalidate>
+						<div class="page-card-body">
+							<div class="email-field">
+								<input type="email" id="forgot_email" class="form-control"
+									placeholder="{{ _('Email Address') }}" required autofocus autocomplete="username">
+							</div>
+						</div>
+						<div class="page-card-actions">
+							<button class="btn btn-primary btn-block btn-forgot" type="submit">{{ _("Reset Password") }}</button>
+							<p class="text-center sign-up-message">
+								<a href="#login">{{ _("Back to Login") }}</a>
+							</p>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+<section class='for-login-with-email-link'>
+	<div class="container">
+		<div class="row">
+			<div class="col-lg-5 card mx-auto">
+				{{ ethiotel_logo() }}
+				<div class="page-card">
+					<form class="form-signin form-login-with-email-link" role="form" novalidate>
+						<div class="page-card-body">
+							<div class="email-field">
+								<input type="email" id="login_with_email_link_email" class="form-control"
+									placeholder="{{ _('Email Address') }}" required autofocus autocomplete="username">
+							</div>
+						</div>
+						<div class="page-card-actions">
+							<button class="btn btn-primary btn-block btn-login-with-email-link" type="submit">{{ _("Send login link") }}</button>
+							<p class="text-center sign-up-message">
+								<a href="#login">{{ _("Back to Login") }}</a>
+							</p>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+<div class="login-buttons text-center">
+	<!-- user is asked to switch between login / email-login / login-with-email-link via url -->
+</div>
+
+{% endblock %}
+
+{% block script %}
+<script>{% include "templates/includes/login/login.js" %}</script>
+{% endblock %}
+
+{% block sidebar %}{% endblock %}
+
+{% block footer %}{% endblock %}

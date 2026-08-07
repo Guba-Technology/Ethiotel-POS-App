@@ -1465,48 +1465,8 @@ body[data-page-route="posapp"] .v-btn--color-secondary {
 
 /* =====================================================================
    32. DARK MODE support
+   =====================================================================
+   Ethiotel intentionally keeps the light green theme in all cases.
+   (Removed the prefers-color-scheme:dark overrides that painted the
+   desk dark whenever the OS was in dark mode.)
    ===================================================================== */
-@media (prefers-color-scheme: dark) {
-  [data-theme="light"] {
-    --bg-color: #0F171E;
-    --fg-color: #1A2530;
-    --card-bg: #1A2530;
-    --bg-light-gray: #24303D;
-    --bg-gray: #2C3A49;
-    --text-color: #E8EDF0;
-    --text-muted: #9AABBB;
-    --text-light: #6B7D8F;
-    --heading-color: #E8EDF0;
-    --navbar-bg: #6A9E2E;
-    --sidebar-bg: #1A2530;
-    --sidebar-hover-color: #2C3A49;
-    --sidebar-border-color: #2A3846;
-    --border-color: #2A3846;
-    --control-bg: #24303D;
-    --awesome-bar-bg: #24303D;
-  }
-
-  .navbar {
-    background: var(--navbar-bg) !important;
-  }
-
-  .search-bar .awesomplete input {
-    background: #1A2530 !important;
-    border-color: #2A3846 !important;
-    color: #E8EDF0 !important;
-  }
-
-  .search-bar .awesomplete input::placeholder {
-    color: #6B7D8F !important;
-  }
-
-  body[data-page-route="posapp"],
-  .posapp {
-    --pos-bg-secondary: #0F171E;
-    --pos-card-bg: #1A2530;
-    --pos-text-primary: #E8EDF0;
-    --pos-text-secondary: #9AABBB;
-    --pos-divider: #2A3846;
-    --pos-border: rgba(255, 255, 255, 0.10);
-  }
-}

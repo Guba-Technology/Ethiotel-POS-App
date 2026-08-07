@@ -1,0 +1,397 @@
+/* =========================================================================
+   Ethio Telecom POS — Ethiotel-style Login
+   Ported from EIMS LoginUI.css (http://196.190.92.198/Account/Login)
+   Green theme #2a8f2d / #17a2b8, Inter font, split-screen layout
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+/* ---------- Page scaffold ---------- */
+.login-window {
+	margin: 0 !important;
+	padding: 0 !important;
+	min-height: 100vh;
+}
+#form-section,
+#background-section {
+	min-height: 100vh;
+	padding: 0;
+}
+
+/* ---------- AUTH LOGO / brand panel ---------- */
+#form-section {
+	background: #ffffff;
+	box-shadow: -4px 0 24px rgba(0, 0, 0, 0.06);
+}
+
+.auth-logo-wrap {
+	padding: 8% 11% 3%;
+	background: linear-gradient(135deg, #2a8f2d 0%, #17a2b8 100%);
+	position: relative;
+	overflow: hidden;
+}
+
+/* Animated dotted pattern */
+.auth-logo-wrap::before {
+	content: '';
+	position: absolute;
+	top: -50%;
+	right: -50%;
+	width: 200%;
+	height: 200%;
+	background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+	background-size: 40px 40px;
+	animation: ethiotelMovePattern 30s linear infinite;
+	opacity: 0.6;
+}
+
+/* Gradient orb */
+.auth-logo-wrap::after {
+	content: '';
+	position: absolute;
+	top: 20%;
+	right: 15%;
+	width: 250px;
+	height: 250px;
+	background: radial-gradient(circle, rgba(178, 197, 157, 0.25) 0%, transparent 70%);
+	border-radius: 50%;
+	filter: blur(80px);
+	animation: ethiotelFloatOrb 10s ease-in-out infinite;
+}
+
+@keyframes ethiotelMovePattern {
+	0% { transform: translate(0, 0); }
+	100% { transform: translate(40px, 40px); }
+}
+
+@keyframes ethiotelFloatOrb {
+	0%, 100% { transform: translate(0, 0) scale(1); }
+	50% { transform: translate(40px, -40px) scale(1.15); }
+}
+
+.auth-logo-wrap .app-logo {
+	position: relative;
+	z-index: 1;
+	max-height: 84px;
+	margin-bottom: 10px;
+	filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.25));
+}
+
+.auth-logo-wrap h1 {
+	position: relative;
+	z-index: 1;
+	margin: 0;
+	font-weight: 800;
+	letter-spacing: 0.5px;
+}
+
+/* ---------- AUTH FORM ---------- */
+#auth-form {
+	max-width: 80%;
+	margin: 6% 10% 0;
+	animation: ethiotelFadeInUp 0.6s ease-out;
+}
+
+@keyframes ethiotelFadeInUp {
+	from { opacity: 0; transform: translateY(20px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+
+#auth-form .form-group { margin-bottom: 22px; }
+
+/* inputs */
+#auth-form .form-control,
+#auth-form input.form-control {
+	border: 2px solid #e5e7eb;
+	border-radius: 12px;
+	padding: 12px 16px;
+	font-size: 14px;
+	font-weight: 500;
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	background: #f9fafb;
+	color: #1a1a1a;
+}
+
+#auth-form .form-control:focus {
+	outline: none;
+	border-color: #2a8f2d;
+	background: #ffffff;
+	box-shadow: 0 0 0 4px rgba(42, 143, 45, 0.1);
+	transform: translateY(-1px);
+}
+
+#auth-form .form-control::placeholder { color: #9ca3af; font-weight: 400; }
+
+/* links */
+#auth-form a {
+	color: #2a8f2d;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+#auth-form a:hover { color: #17a2b8; }
+.forgot-password-message { text-align: right; margin: -8px 0 8px; font-size: 13px; }
+.sign-up-message { font-size: 13px; }
+
+/* ============================================
+   BUTTON - MODERN GREEN (same as EIMS .btn-info)
+   ============================================ */
+.btn-login,
+.btn-forgot,
+.btn-login-with-email-link,
+.btn-ldap-login {
+	background: linear-gradient(135deg, #2a8f2d 0%, #2fa832 100%);
+	border: none;
+	border-radius: 12px;
+	padding: 14px 28px;
+	font-size: 15px;
+	font-weight: 600;
+	color: #ffffff !important;
+	letter-spacing: 0.3px;
+	text-transform: uppercase;
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	box-shadow: 0 4px 14px rgba(42, 143, 45, 0.35);
+	position: relative;
+	overflow: hidden;
+}
+
+/* shine sweep */
+.btn-login::before,
+.btn-forgot::before,
+.btn-login-with-email-link::before,
+.btn-ldap-login::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: -100%;
+	width: 100%;
+	height: 100%;
+	background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+	transition: left 0.6s ease;
+}
+
+.btn-login:hover::before,
+.btn-forgot:hover::before,
+.btn-login-with-email-link:hover::before,
+.btn-ldap-login:hover::before { left: 100%; }
+
+.btn-login:hover,
+.btn-forgot:hover,
+.btn-login-with-email-link:hover,
+.btn-ldap-login:hover {
+	background: linear-gradient(135deg, #2fa832 0%, #2a8f2d 100%);
+	transform: translateY(-2px);
+	box-shadow: 0 8px 24px rgba(42, 143, 45, 0.45);
+	border: none;
+	color: #ffffff !important;
+}
+
+/* ============================================
+   BACKGROUND SECTION (right) - dark green
+   ============================================ */
+#background-section {
+	background: linear-gradient(135deg, #ffffff 0%, #ebf3ec 100%);
+	position: relative;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+#background-section::before {
+	content: '';
+	position: absolute;
+	top: -50%;
+	left: -50%;
+	width: 200%;
+	height: 200%;
+	background: radial-gradient(circle, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+	background-size: 40px 40px;
+	animation: ethiotelMovePattern 30s linear infinite;
+	opacity: 0.6;
+}
+
+#background-section::after {
+	content: '';
+	position: absolute;
+	bottom: 10%;
+	left: 10%;
+	width: 380px;
+	height: 380px;
+	background: radial-gradient(circle, rgba(189, 240, 230, 0.18) 0%, transparent 70%);
+	border-radius: 50%;
+	filter: blur(90px);
+	animation: ethiotelFloatOrb 12s ease-in-out infinite;
+}
+
+#background-content {
+	position: relative;
+	z-index: 1;
+	text-align: center;
+	padding: 0 10%;
+}
+
+.imgCustom200pxCircle {
+	border: 4px solid rgba(255, 255, 255, 0.3);
+	width: 200px;
+	height: 200px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.1);
+	backdrop-filter: blur(20px);
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+		0 0 40px rgba(255, 255, 255, 0.15);
+	transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+	object-fit: cover;
+	position: relative;
+	z-index: 1;
+}
+
+.imgCustom200pxCircle:hover {
+	transform: scale(1.08) translateY(-8px);
+	border-color: rgba(255, 255, 255, 0.5);
+	box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35), 0 0 0 2px rgba(255, 255, 255, 0.2) inset,
+		0 0 60px rgba(255, 255, 255, 0.25);
+}
+
+#background-tagline {
+	color: rgba(10, 66, 206, 0.92);
+	font-size: 1.15rem;
+	font-weight: 500;
+	max-width: 420px;
+	margin: 28px auto 36px;
+	line-height: 1.5;
+}
+
+#background-features {
+	display: flex;
+	gap: 28px;
+	flex-wrap: wrap;
+	justify-content: center;
+}
+
+.background-feature {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	border-radius: 12px;
+	padding: 10px 16px;
+	color: rgba(10, 66, 206, 0.92);
+	font-size: 0.85rem;
+	font-weight: 600;
+	backdrop-filter: blur(8px);
+}
+
+.background-feature i { color: #7fe6c9; font-size: 1rem; }
+
+#background-signin-link { position: relative; z-index: 1; margin-top: 30px; }
+#background-signin-link a { color: rgba(255, 255, 255, 0.85); font-weight: 600; }
+#background-signin-link a:hover { color: #ffffff; }
+
+/* ============================================
+   OVERRIDES against frappe login.bundle.css
+   ============================================ */
+.login-window .page-card {
+	max-width: 100% !important;
+	margin: 0 !important;
+	border: none !important;
+	box-shadow: none !important;
+	padding: 0 !important;
+	background: transparent !important;
+}
+
+#form-section .page-card-body { padding: 0; }
+
+/* hidden sections default */
+.for-login,
+.for-email-login,
+.for-signup,
+.for-forgot,
+.for-login-with-email-link { display: none; }
+.for-login { display: block; }
+
+/* hide frappe default logo text inside these cards */
+.for-signup .auth-logo-wrap,
+.for-forgot .auth-logo-wrap,
+.for-login-with-email-link .auth-logo-wrap,
+.for-email-login .auth-logo-wrap {
+	padding: 6% 6% 2%;
+	border-radius: 16px;
+	margin-bottom: 16px;
+}
+
+.for-signup .card,
+.for-forgot .card,
+.for-login-with-email-link .card,
+.for-email-login .page-card {
+	background: #fff !important;
+	border-radius: 16px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+	padding: 20px !important;
+	margin-top: 8vh !important;
+}
+
+/* hide the web navbar/footer from login page */
+body[data-path="login"] .navbar,
+body[data-path="login"] .web-footer,
+body[data-path="login"] .page-breadcrumbs { display: none !important; }
+
+body[data-path="login"] .page_content { min-height: 100vh; }
+
+/* toggle password */
+.toggle-password {
+	color: #2a8f2d;
+	font-size: 12px;
+	cursor: pointer;
+	float: right;
+	margin-top: -30px;
+	margin-right: 12px;
+	position: relative;
+	z-index: 2;
+	background: transparent;
+	padding: 2px 6px;
+}
+
+/* checkbox */
+#auth-form input[type="checkbox"] {
+	appearance: none;
+	width: 20px;
+	height: 20px;
+	border: 2px solid #d1d5db;
+	border-radius: 6px;
+	background: #f9fafb;
+	cursor: pointer;
+	position: relative;
+	vertical-align: middle;
+}
+
+#auth-form input[type="checkbox"]:checked {
+	background: #2a8f2d;
+	border-color: #2a8f2d;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 991px) {
+	#auth-form { max-width: 90%; margin-left: 5%; margin-right: 5%; }
+}
+
+@media (max-width: 576px) {
+	#auth-form { max-width: 95%; margin-top: 10%; }
+	.imgCustom200pxCircle { width: 160px; height: 160px; }
+	.btn-login { padding: 12px 24px; font-size: 14px; }
+	.auth-logo-wrap { padding: 12% 8% 4%; }
+	.auth-logo-wrap .app-logo { max-height: 56px; }
+}
+
+/* scrollbar + selection */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb {
+	background: linear-gradient(135deg, #2a8f2d, #2fa832);
+	border-radius: 5px;
+}
+::selection { background: #2a8f2d; color: #ffffff; }

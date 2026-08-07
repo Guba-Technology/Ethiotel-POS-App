@@ -37,13 +37,12 @@ fixtures = [{
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/ethiotel_pos/css/ethiotel_pos.css"
-# app_include_js = "/assets/ethiotel_pos/js/ethiotel_pos.js"
 app_include_css = [
     "/assets/ethiotel_pos/css/ethiotel_branding.css",
-    "/assets/ethiotel_pos/css/erp_pos.css"
+    "/assets/ethiotel_pos/css/ethiotel_pos.css",
 ]
 app_include_js = [
+    "/assets/ethiotel_pos/js/ethiotel_pos.js",
     "/assets/ethiotel_pos/js/navbar_main.js",
     "/assets/ethiotel_pos/js/navbar_drawer.js",
     "/assets/ethiotel_pos/js/erp_pos.js"
@@ -73,6 +72,13 @@ doctype_js = {
 # include js, css files in header of web form
 # webform_include_js = {"doctype": "public/js/doctype.js"}
 # webform_include_css = {"doctype": "public/css/doctype.css"}
+
+# Override ERPNext brand assets (favicon / splash) — drop the logo files at
+# apps/ethiotel_pos/ethiotel_pos/public/images/Ethiotel-logo.png
+website_context = {
+	"favicon": "/assets/ethiotel_pos/images/tele.jpg",
+	"splash_image": "/assets/ethiotel_pos/images/tele.jpg",
+}
 
 # include js in page
 # page_js = {"page" : "public/js/file.js"}
@@ -108,10 +114,12 @@ doctype_js = {
 # ----------
 
 # add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "ethiotel_pos.utils.jinja_methods",
-# 	"filters": "ethiotel_pos.utils.jinja_filters"
-# }
+jinja = {
+	"methods": [
+		"ethiotel_pos.utils.get_invoice_qr_data_uri",
+		"ethiotel_pos.utils.get_qr_img_tag",
+	],
+}
 
 # Installation
 # ------------

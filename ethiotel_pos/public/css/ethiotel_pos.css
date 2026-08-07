@@ -1,0 +1,613 @@
+@import url("/assets/ethiotel_pos/css/erp_pos.css");
+
+/* =========================================================================
+   EIMS "Ethiotel Invoice" / AdminLTE — Side Invoice POS theme
+   Target look: http://196.190.92.198/ItemCart/ItemCartSideInvoice
+   ========================================================================= */
+
+:root {
+	--eims-green: #1a7a4c;
+	--eims-green2: #145c3a;
+	--eims-green3: #0f4a2e;
+	--eims-lime: #8fbf3f;
+	--eims-teal: #17a2b8;
+	--eims-danger: #dc3545;
+	--eims-warning: #ffc107;
+	--eims-soft: #f4f6f9;
+	--eims-table-head: #f8f9fa;
+	--et-bar-grad: linear-gradient(120deg, #1a7a4c, #2fa16a);
+	--et-app-bg: radial-gradient(1200px 500px at 85% -10%, rgba(26, 122, 76, .10), transparent 60%),
+	             linear-gradient(180deg, #f4f6f9, #eef1f4);
+}
+
+body {
+	background: var(--et-app-bg) !important;
+	background-attachment: fixed;
+}
+
+/* ---------- AdminLTE-style main navbar ---------- */
+.navbar {
+	background: linear-gradient(90deg, var(--eims-green), var(--eims-green2)) !important;
+	border-bottom: 2px solid var(--eims-lime);
+}
+.navbar a, .navbar .navbar-right a { color: #fff !important; }
+.navbar .navbar-right .btn-secondary { background: rgba(255,255,255,.15); border-color: transparent; }
+
+/* ---------- Page header ---------- */
+.page-head { background: transparent !important; }
+.page-head .page-title::after {
+	content: "";
+	display: block;
+	height: 4px;
+	width: 70px;
+	margin-top: 6px;
+	border-radius: 4px;
+	background: var(--et-bar-grad);
+}
+
+/* =========================================================================
+   POS — EIMS "Side Invoice"
+   ========================================================================= */
+.point-of-sale-app {
+	--pos-accent: var(--eims-green);
+	--pos-accent-2: var(--eims-green2);
+	padding: 0 !important;
+	grid-gap: 12px !important;
+}
+
+.point-of-sale-app section {
+	border-radius: 8px !important;
+	background: #fff !important;
+	border: 1px solid #dee2e6 !important;
+	box-shadow: 0 1px 6px rgba(0, 0, 0, .05) !important;
+	overflow: hidden;
+}
+
+/* ---------- Item selector (right pane) ---------- */
+.items-selector .filter-section {
+	padding: 12px 14px 6px;
+	background: var(--eims-soft);
+	border-bottom: 1px solid #e9ecef;
+}
+.items-selector .label {
+	color: var(--eims-green);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+	font-size: 12px;
+}
+.items-selector .search-field input,
+.items-selector .item-group-field .frappe-control input {
+	border: 1px solid #ced4da;
+	border-radius: 4px;
+}
+.items-selector .search-field input:focus,
+.items-selector .item-group-field .frappe-control input:focus {
+	border-color: var(--eims-green);
+	box-shadow: 0 0 0 .15rem rgba(26, 122, 76, .25);
+}
+.items-container { padding: 8px 12px 12px; }
+.item-wrapper {
+	border: 1px solid #dee2e6 !important;
+	border-radius: 6px !important;
+	background: #fff;
+	transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
+}
+.item-wrapper:hover {
+	border-color: var(--eims-green) !important;
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(26, 122, 76, .18) !important;
+}
+.item-wrapper.selected {
+	border: 2px solid var(--eims-green) !important;
+	box-shadow: inset 0 0 0 1px var(--eims-green), 0 4px 12px rgba(26, 122, 76, .15) !important;
+}
+.item-wrapper .quantity-pill {
+	background: var(--et-bar-grad) !important;
+	color: #fff !important;
+}
+.item-name { font-weight: 600; color: var(--et-ink, #1A1F24); }
+.item-rate { color: var(--eims-green); font-weight: 600; }
+.item-display.abbr {
+	background: var(--et-bar-grad) !important;
+	color: #fff !important;
+	font-weight: 700;
+	border-radius: 6px 6px 0 0;
+}
+
+/* ---------- Cart (left pane, like EIMS side invoice table) ---------- */
+.cart-container { display: flex; flex-direction: column; }
+.cart-label {
+	color: var(--eims-green);
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: .05em;
+	font-size: 12px;
+	padding: 12px 14px 0;
+}
+.cart-header {
+	color: var(--et-soft, #6B7A86);
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: .03em;
+	padding: 8px 14px;
+	border-bottom: 1px solid var(--et-line, #E2E8ED);
+}
+.cart-items-section { flex: 1 1 auto; overflow-y: auto; }
+.item-cart-items .cart-item-wrapper {
+	border-left: 3px solid transparent;
+	transition: border-color .12s ease, background .12s ease;
+}
+.item-cart-items .cart-item-wrapper:hover {
+	background: #f0f8f4;
+	border-left-color: var(--eims-green);
+}
+.no-item-wrapper { color: var(--et-soft, #6B7A86) !important; }
+
+/* ---------- Cart totals & checkout ---------- */
+.grand-total-container {
+	background: var(--et-bar-grad) !important;
+	border-radius: 8px !important;
+	color: #fff !important;
+	padding: 12px 14px !important;
+}
+.grand-total-container .grand-total-label,
+.grand-total-container .grand-total-value { color: #fff !important; }
+
+.checkout-btn {
+	background: linear-gradient(120deg, var(--eims-green), #2fa16a) !important;
+	color: #fff !important;
+	border: none !important;
+	font-weight: 700 !important;
+	border-radius: 4px;
+	transition: transform .12s ease, box-shadow .12s ease;
+}
+.checkout-btn:hover {
+	transform: translateY(-1px) !important;
+	box-shadow: 0 4px 12px rgba(26, 122, 76, .35) !important;
+}
+.edit-cart-btn { color: var(--eims-green) !important; }
+
+/* ---------- Numpad ---------- */
+.numpad-container { gap: 6px; }
+.numpad-btn {
+	border-radius: 6px !important;
+	border: 1px solid #ced4da !important;
+	background: #fff !important;
+	font-weight: 600 !important;
+	transition: transform .1s ease, background .12s ease;
+}
+.numpad-btn:hover {
+	background: #f0f8f4 !important;
+	border-color: var(--eims-green) !important;
+	transform: scale(1.03);
+}
+
+/* ---------- Payment section ---------- */
+.payment-section { padding: 14px; }
+.payment-toolbar { margin-bottom: 10px; }
+.payment-button {
+	border-radius: 4px !important;
+	transition: transform .12s ease;
+}
+.payment-button:hover { transform: translateY(-1px); }
+.payment-button.selected {
+	background: var(--et-bar-grad) !important;
+	border-color: var(--eims-green) !important;
+	color: #fff !important;
+}
+.mode-of-payment {
+	border: 1px solid #dee2e6 !important;
+	border-radius: 6px;
+	transition: box-shadow .12s ease;
+}
+.mode-of-payment:hover { box-shadow: 0 3px 10px rgba(26, 122, 76, .15) !important; }
+.mode-of-payment.selected { border: 2px solid var(--eims-green) !important; }
+
+/* ---------- Recently quantities / past orders ---------- */
+.invoice-wrapper {
+	border-radius: 6px !important;
+	border: 1px solid #dee2e6 !important;
+	transition: box-shadow .12s ease, transform .12s ease;
+}
+.invoice-wrapper:hover {
+	box-shadow: 0 4px 12px rgba(26, 122, 76, .12) !important;
+	transform: translateY(-1px);
+}
+.summary-row-wrapper.grand-total { background: var(--eims-soft); border-radius: 6px; }
+
+/* ---------- Buttons matching EIMS ---------- */
+.btn-primary { background: var(--eims-green) !important; border-color: var(--eims-green) !important; }
+.btn-primary:hover { background: var(--eims-green2) !important; border-color: var(--eims-green2) !important; }
+.btn-info { background: var(--eims-teal) !important; border-color: var(--eims-teal) !important; color: #fff !important; }
+.btn-danger { background: var(--eims-danger) !important; border-color: var(--eims-danger) !important; }
+
+/* ---------- Fullscreen & utility ---------- */
+body:fullscreen .point-of-sale-app { padding: 1.5% !important; }
+:focus-visible { outline: 2px solid var(--eims-green) !important; outline-offset: 2px; }
+
+/* ---------- Nav live clock ---------- */
+.et-nav-clock {
+	display: inline-flex; align-items: center; gap: 6px;
+	margin-right: 12px;
+	color: #fff;
+	font-variant-numeric: tabular-nums;
+}
+.et-nav-clock i {
+	width: 8px; height: 8px; border-radius: 50%;
+	background: var(--eims-lime);
+	animation: et-pulse 1.6s infinite;
+}
+.et-nav-shop { margin-left: 8px; }
+.et-nav-shop a { color: #fff !important; font-weight: 600; }
+
+@keyframes et-pulse {
+	0%   { transform: scale(.7); opacity: .5; }
+	50%  { transform: scale(1.15); opacity: 1; }
+	100% { transform: scale(.7); opacity: .5; }
+}
+
+/* ---------- Offline banner ---------- */
+.et-offline-badge {
+	background: var(--eims-danger) !important;
+	color: #fff !important;
+	font-weight: 700;
+	border-radius: 4px;
+	padding: 2px 10px;
+	margin: 0 8px;
+	animation: et-pulse 1.6s infinite;
+}
+
+@media print {
+	.navbar, .page-head, .page-actions, .sidebar-container { display: none !important; }
+}
+
+
+body {
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ---------- Sidebar (desk) ---------- */
+.desk-sidebar {
+	background: #ffffff !important;
+}
+.desk-sidebar .sidebar-item-container .crow,
+.desk-sidebar .standard-sidebar-item {
+	border-radius: 8px !important;
+}
+.desk-sidebar .sidebar-item:hover {
+	background: #f0f8f4 !important;
+	color: var(--eims-green) !important;
+}
+.desk-sidebar .sidebar-item.active,
+.desk-sidebar .sidebar-item.selected {
+	background: var(--et-bar-grad) !important;
+	color: #fff !important;
+}
+.desk-sidebar .sidebar-item.active .sidebar-item-icon,
+.desk-sidebar .sidebar-item.active .sidebar-item-label,
+.desk-sidebar .sidebar-item.selected .sidebar-item-icon,
+.desk-sidebar .sidebar-item.selected .sidebar-item-label {
+	color: #fff !important;
+}
+.desk-sidebar a {
+	color: inherit;
+}
+.desk-sidebar .group-heading {
+	color: var(--eims-green2) !important;
+	font-weight: 700 !important;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+	font-size: 11px;
+}
+.desk-sidebar .sidebar-footer {
+	border-top: 1px solid #e9ecef;
+}
+
+/* list view */
+.list-view {
+	background: #fff;
+	border-radius: 8px;
+	box-shadow: 0 1px 6px rgba(0, 0, 0, .05);
+	border: 1px solid #dee2e6;
+	overflow: hidden;
+}
+.list-row {
+	border-bottom: 1px solid #edf0f3 !important;
+	transition: background .12s ease;
+}
+.list-row:hover {
+	background: #f6fbf8 !important;
+}
+.list-row--head {
+	background: var(--eims-table-head) !important;
+	border-bottom: 2px solid var(--eims-green) !important;
+	color: var(--eims-green2);
+	font-weight: 600;
+}
+.list-row--head .list-row--col .frappe-control .input-checkbox:checked {
+	background-color: var(--eims-green);
+	border-color: var(--eims-green);
+}
+
+/* ---------- Card visual language ---------- */
+.frappe-card {
+	border-radius: 8px !important;
+	box-shadow: 0 1px 6px rgba(0, 0, 0, .05) !important;
+	border: 1px solid #e9ecef !important;
+}
+.page-container .frappe-card {
+	border-radius: 10px;
+}
+
+/* ---------- Tables ---------- */
+.table th {
+	background: var(--eims-table-header) !important;
+	color: var(--eims-green2) !important;
+	border-bottom: 2px solid var(--eims-green) !important;
+}
+.table-striped tbody tr:nth-of-type(odd) { background: #f8fcf9; }
+.table-hover tbody tr:hover { background: #eef7f0 !important; }
+
+/* ---------- Form controls ---------- */
+.form-control {
+	border: 1px solid #ced4da;
+	border-radius: 6px;
+	transition: border-color .15s ease, box-shadow .15s ease;
+}
+.form-control:focus {
+	border-color: var(--eims-green);
+	box-shadow: 0 0 0 .2rem rgba(26, 122, 76, .25);
+}
+.form-section.card-section {
+	border-radius: 8px;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+}
+.form-section .section-head {
+	border-bottom: 1px solid #e9ecef;
+}
+.form-section .section-title {
+	color: var(--eims-green2) !important;
+	font-weight: 700;
+}
+label {
+	color: var(--eims-green2);
+	font-weight: 600;
+}
+.input-group-text {
+	border-color: #cfd4da;
+	background: var(--eims-soft);
+}
+
+/* ---------- Checkboxes / selection checkbox ---------- */
+.checkbox-options .checkbox { color: var(--eims-green2); }
+input[type="checkbox"] {
+	accent-color: var(--eims-green);
+}
+
+/* ---------- Buttons (EIMS green gradient, AdminLTE style) ---------- */
+.btn-primary {
+	background: var(--et-bar-grad) !important;
+	border-color: transparent !important;
+	font-weight: 600;
+	letter-spacing: .02em;
+}
+.btn-primary:hover {
+	background: linear-gradient(120deg, var(--eims-green2), var(--eims-green)) !important;
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(26, 122, 76, .35) !important;
+}
+.btn-default,
+.btn-secondary {
+	border-radius: 6px;
+}
+.btn-default:hover,
+.btn-secondary:hover {
+	border-color: var(--eims-green);
+	color: var(--eims-green);
+}
+
+/* ---------- Links ---------- */
+a,
+.text-primary,
+.link-option {
+	color: var(--eims-green) !important;
+}
+a:hover {
+	color: var(--eims-green2);
+}
+
+/* ---------- Indicators / badges ---------- */
+.indicator.green { color: var(--eims-green) !important; }
+.indicator-pill.green { background: var(--eims-green) !important; }
+.control-value {
+	color: var(--eims-green2);
+}
+
+/* ---------- Page titles (consistent green underline) ---------- */
+.page-head .page-title::after {
+	content: "";
+	display: block;
+	height: 4px;
+	width: 70px;
+	margin-top: 6px;
+	border-radius: 4px;
+	background: var(--et-bar-grad);
+}
+
+/* ---------- Modals ---------- */
+.modal-header {
+	background: var(--et-bar-grad) !important;
+	color: #fff !important;
+	border-bottom: none;
+	border-radius: 8px 8px 0 0;
+}
+.modal-header .close,
+.modal-header h5,
+.modal-header .modal-title { color: #fff !important; }
+.modal-content {
+	border-radius: 8px;
+	border: none;
+	box-shadow: 0 10px 40px rgba(0, 0, 0, .2);
+}
+
+/* ---------- Datatable (list view rows) ---------- */
+.datatable .dt-header .dt-cell--header {
+	background: var(--eims-table-header) !important;
+	color: var(--eims-green2) !important;
+}
+.datatable .dt-row:hover { background: #f2f9f4 !important; }
+
+/* ---------- Search + command palette banner ---------- */
+.awesomebar-input,
+input[type="search"] {
+	border-radius: 6px;
+}
+.awesomebar-input:focus {
+	border-color: var(--eims-green);
+	box-shadow: 0 0 0 .2rem rgba(26, 122, 76, .25);
+}
+
+/* ---------- Workspace tiles ---------- */
+.workspace .list-group-item {
+	border-radius: 8px;
+	transition: box-shadow .15s ease, transform .15s ease;
+}
+.workspace .list-group-item:hover {
+	border-color: var(--eims-green);
+	box-shadow: 0 4px 14px rgba(26, 122, 76, .18);
+	transform: translateY(-2px);
+}
+
+/* ---------- Navbar brand (replaces ERPNext logo) ---------- */
+.navbar .et-nav-brand,
+.navbar-header .et-nav-brand {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	color: #fff !important;
+	text-decoration: none;
+}
+.et-nav-logo {
+	height: 34px;
+	width: auto;
+	max-width: 120px;
+	object-fit: contain;
+	background: rgba(255, 255, 255, .12);
+	border: 1px solid rgba(255, 255, 255, .3);
+	border-radius: 6px;
+	padding: 2px 6px;
+}
+.et-nav-brand-text {
+	font-size: 15px;
+	font-weight: 700;
+	letter-spacing: .3px;
+	color: #fff;
+	white-space: nowrap;
+}
+@media (max-width: 768px) {
+	.et-nav-brand-text { font-size: 13px; }
+	.et-nav-logo { height: 26px; max-width: 90px; }
+}
+
+/* hide any leftover ERPNext logos in navbar/sidebar */
+.navbar img.app-logo,
+.desk-sidebar .sidebar-logo {
+	display: none !important;
+}
+
+/* =========================================================================
+   ERPNEXT INTERNAL ERP — same green style as the Ethiotel login page
+   ========================================================================= */
+
+/* ---------- Homepage (Workspaces/Home) page frame ---------- */
+body[data-route^="Workspaces"] .layout-main-section,
+body[data-list-view] .layout-main-section {
+	background: transparent !important;
+}
+
+#page-Workspaces .page-head .page-title {
+	font-weight: 800;
+	letter-spacing: .2px;
+}
+
+/* ---------- Workspace widget cards (number cards / charts / shortcuts) ---------- */
+.widget {
+	border-radius: 10px !important;
+	border: 1px solid #e5e9ee !important;
+	box-shadow: 0 1px 6px rgba(26, 122, 76, .06) !important;
+	transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+	overflow: hidden;
+}
+.widget:hover {
+	border-color: var(--eims-green) !important;
+	box-shadow: 0 6px 18px rgba(26, 122, 76, .16) !important;
+	transform: translateY(-2px);
+}
+
+.widget .widget-head {
+	background: linear-gradient(135deg, #ffffff, var(--eims-soft)) !important;
+	border-bottom: 1px solid #eef1f4 !important;
+}
+.widget .widget-head .widget-title {
+	color: var(--eims-green2) !important;
+	font-weight: 700 !important;
+}
+
+/* number cards -> green gradient value */
+.widget.number_card .number {
+	background: var(--et-bar-grad) !important;
+	-webkit-background-clip: text !important;
+	background-clip: text !important;
+	color: transparent !important;
+	font-weight: 800 !important;
+}
+.widget.chart-widget {
+	background: #fff !important;
+}
+
+/* ---------- Shortcut tiles (like the login feature pills) ---------- */
+.shortcut-card {
+	background: #fff !important;
+	border: 1px solid #e5e9ee !important;
+	border-radius: 12px !important;
+	transition: all .15s ease;
+}
+.shortcut-card:hover {
+	border-color: var(--eims-green) !important;
+	box-shadow: 0 5px 16px rgba(26, 122, 76, .18) !important;
+	transform: translateY(-2px);
+}
+.shortcut-card .shortcut-icon i,
+.shortcut-card .shortcut-icon svg {
+	color: var(--eims-green) !important;
+}
+.shortcut-card .shortcut-label {
+	color: #1f2937 !important;
+	font-weight: 600;
+}
+
+/* ---------- Charts inside workspace ---------- */
+.chart-container .chart-widget {
+	border: 1px solid #e5e9ee !important;
+	border-radius: 10px !important;
+}
+
+/* ---------- Desk widgets on any page (dashboard, reports) ---------- */
+.desktop-list-header,
+.desk-widget {
+	background: #fff !important;
+	border: 1px solid #e5e9ee !important;
+	border-radius: 10px !important;
+}
+
+/* ---------- Welcome / onboarding strip ---------- */
+.desk-onboarding {
+	background: linear-gradient(120deg, var(--eims-green), var(--eims-green2)) !important;
+	border: none !important;
+	border-radius: 12px !important;
+	color: #fff !important;
+}
+.desk-onboarding .indicator-pill,
+.desk-onboarding .onboarding-title,
+.desk-onboarding .text-muted { color: #fff !important; }
