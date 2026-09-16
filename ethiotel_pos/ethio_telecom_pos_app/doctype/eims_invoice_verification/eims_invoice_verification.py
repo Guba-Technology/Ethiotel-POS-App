@@ -29,6 +29,7 @@ class EIMSInvoiceVerification(Document):
 
         try:
             token = connector.get_valid_token()
+            default_client = connector.get_default_client_data()
             base_url = connector.settings.base_url.strip().replace('"', '').replace("'", "").rstrip('/')
             url = f"{base_url}/v1/verify"
 
@@ -41,19 +42,27 @@ class EIMSInvoiceVerification(Document):
                 "Connection": "keep-alive"
             }
 
-            payload_data = json.dumps({"irn": self.irn.strip()})
-            response = requests.post(url, data=payload_data, headers=headers, timeout=15)
+            payload_data = json.dumps({"irn": self.irn.strip()}, separators=(",", ":"))
+            request_body = connector._build_signed_envelope(payload_data, default_client)
+            self.request_payload = request_body
+            response = requests.post(url, data=request_body.encode("utf-8"), headers=headers, timeout=15)
 
             try:
                 res_data = response.json()
             except ValueError:
-                # Non-JSON response handling
-                err_msg = f"HTTP {response.status_code}: {response.text[:200]}"
+                # Non-JSON response — extract a clean status phrase for the UI
+                # but log the raw body for debugging.
+                status_phrase = (response.reason or "Error").strip()
+                err_msg = f"HTTP {response.status_code} {status_phrase}"
+                frappe.log_error(
+                    f"Non-JSON verify response ({response.status_code}): {response.text[:500]}",
+                    "EIMS Verify Non-JSON Response",
+                )
                 self.map_failure(err_msg)
                 self.verified_at = now_datetime()
                 self.save()
                 frappe.db.commit()
-                
+
                 return {
                     "verification_status": self.verification_status,
                     "error_logs": self.error_logs,

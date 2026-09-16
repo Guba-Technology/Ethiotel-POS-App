@@ -23,6 +23,19 @@ class EIMSConnectorDocNum:
             return db_res[0].get("custom_mor_irn") or ""
         return ""
 
+    def _lookup_irn_for_invoice(self, invoice_name):
+        """Return the EIRMS IRN of a registered Sales Invoice or POS Invoice
+        (used for CRE/DEB note references), or None when it is not registered."""
+        if not invoice_name:
+            return None
+        for doctype, irn_field in (("Sales Invoice", "custom_irn"),
+                                   ("POS Invoice", "custom_mor_irn")):
+            if frappe.db.exists(doctype, invoice_name):
+                irn = frappe.db.get_value(doctype, invoice_name, irn_field)
+                if irn:
+                    return irn
+        return None
+
     def _peek_next_document_number(self):
         """Read-only peek at the next MoR document number: the highest of
         last_document_number + 1 and every document number ever recorded on

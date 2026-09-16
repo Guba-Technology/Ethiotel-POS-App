@@ -8,14 +8,21 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 from ethiotel_pos.eims_connector import EIMSConnector
+from ethiotel_pos.eims.audit import log_audit
+from ethiotel_pos.notify import _enqueue, send_cancellation_notice
 
 
+# MoR cancellation ReasonCode codes (confirmed via EIRMS API docs):
+#   1 = Duplicate, 2 = Data entry mistake, 3 = Order cancelled,
+#   4 = Goods not delivered or returned, 5 = Commercial discount,
+#   6 = Calculation error.
 CANCELLATION_REASON_MAP = {
-    "Order cancelled": "1",
-    "Duplicate": "2",
-    "Data entry mistake": "3",
-    "Mistake": "3",
-    "Others": "4"
+    "Duplicate": "1",
+    "Data entry mistake": "2",
+    "Order cancelled": "3",
+    "Goods not delivered or returned": "4",
+    "Commercial discount": "5",
+    "Calculation error": "6",
 }
 
 
@@ -60,9 +67,13 @@ class EIMSInvoiceCancellation(Document):
                 "Irn": self.irn.strip(),
                 "ReasonCode": CANCELLATION_REASON_MAP.get(self.cancellation_reasons, "1"),
                 "Remark": self.remark.strip()
-            })
+            }, separators=(",", ":"))
 
-            response = requests.post(url, data=payload_data, headers=headers, timeout=15)
+            request_body = connector._build_signed_envelope(
+                payload_data, connector.get_default_client_data()
+            )
+            self.request_payload = request_body
+            response = requests.post(url, data=request_body.encode("utf-8"), headers=headers, timeout=15)
 
             try:
                 res_data = response.json()
@@ -89,6 +100,24 @@ class EIMSInvoiceCancellation(Document):
         self.cancelled_at = now_datetime()
         self.save()
         frappe.db.commit()
+
+        log_audit(
+            "Cancellation",
+            invoice_type="Sales Invoice",
+            invoice=self.sales_invoice,
+            eims_status=self.status,
+            document_number=self.irn,
+            success=self.status == "Cancelled",
+            description=f"Single cancellation. IRN {self.irn} -> {self.status}",
+        )
+
+        if self.status == "Cancelled" and self.sales_invoice:
+            _enqueue(
+                send_cancellation_notice,
+                invoice_name=self.sales_invoice,
+                irn=self.irn,
+                doctype="Sales Invoice",
+            )
 
         return self.get_return_payload()
 
@@ -130,8 +159,12 @@ class EIMSInvoiceCancellation(Document):
                 for row in self.invoice_list
             ]
 
+            request_body = connector._build_signed_envelope(
+                json.dumps(bulk_payload, separators=(",", ":")), connector.get_default_client_data()
+            )
+            self.request_payload = request_body
             response = requests.post(
-                url, data=json.dumps(bulk_payload), headers=headers, timeout=30
+                url, data=request_body.encode("utf-8"), headers=headers, timeout=30
             )
 
             try:
@@ -156,6 +189,23 @@ class EIMSInvoiceCancellation(Document):
         self.cancelled_at = now_datetime()
         self.save()
         frappe.db.commit()
+
+        log_audit(
+            "Cancellation",
+            eims_status=self.status,
+            success=self.status == "Cancelled",
+            description=f"Bulk cancellation of {len(self.invoice_list)} invoice(s) -> {self.status}",
+        )
+
+        if self.status == "Cancelled":
+            for row in self.invoice_list:
+                if row.status == "Cancelled" and row.sales_invoice:
+                    _enqueue(
+                        send_cancellation_notice,
+                        invoice_name=row.sales_invoice,
+                        irn=row.irn,
+                        doctype="Sales Invoice",
+                    )
 
         return self.get_return_payload()
 

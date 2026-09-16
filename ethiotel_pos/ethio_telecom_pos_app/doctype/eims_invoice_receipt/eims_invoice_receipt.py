@@ -159,10 +159,14 @@ class EIMSInvoiceReceipt(Document):
                     "PaymentServiceProvider": self.payment_provider or "Bank",
                     "TransactionNumber": self.transaction_number
                 }
-            })
+            }, separators=(",", ":"))
 
             self.request_payload = payload_data
-            response = requests.post(url, data=payload_data, headers=headers, timeout=15)
+            request_body = connector._build_signed_envelope(
+                payload_data, connector.get_default_client_data()
+            )
+            self.request_payload = request_body
+            response = requests.post(url, data=request_body.encode("utf-8"), headers=headers, timeout=15)
             res_data = response.json()
             if response.status_code == 200 and res_data.get("statusCode") == 200:
                 body = res_data.get("body", {})
@@ -272,9 +276,9 @@ class EIMSInvoiceReceipt(Document):
         seller_hno = getattr(self, "seller_hno", "101")
 
         # Customer Dynamic Values from Document with fallback matching sample
-        customer_name = getattr(self, "party_name", "A Kelemu Leykun Biru")
-        customer_tin = getattr(self, "party_tin", "0000034558")
-        customer_vat_no = getattr(self, "party_vat_no", "123475885858")
+        customer_name = getattr(self, "party_name", "N/A")
+        customer_tin = getattr(self, "party_tin", "N/A")
+        customer_vat_no = getattr(self, "party_vat_no", "N/A")
         customer_city = getattr(self, "customer_city", "이")
         customer_subcity = getattr(self, "customer_subcity", "N/A")
         customer_woreda = getattr(self, "customer_woreda", "574")

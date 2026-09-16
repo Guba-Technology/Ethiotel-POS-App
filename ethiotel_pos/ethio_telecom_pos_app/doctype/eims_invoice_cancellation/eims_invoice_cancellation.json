@@ -19,7 +19,8 @@
    "pos_invoice",
    "irn",
    "bulk_cancellation_tab",
-   "invoice_list"
+   "invoice_list",
+   "request_payload"
   ],
  "fields": [
   {
@@ -67,7 +68,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Cancellation Reasons",
-   "options": "\nOrder cancelled\nDuplicate\nData entry mistake\nOthers",
+   "options": "\nDuplicate\nData entry mistake\nOrder cancelled\nGoods not delivered or returned\nCommercial discount\nCalculation error",
    "reqd": 1
   },
   {
@@ -101,12 +102,18 @@
    "options": "Registered Invoice List"
   },
   {
-   "default": "0",
-   "fieldname": "is_bulk_cancellation",
-   "fieldtype": "Check",
-   "label": "Is Bulk Cancellation"
-  }
- ],
+"default": "0",
+    "fieldname": "is_bulk_cancellation",
+    "fieldtype": "Check",
+    "label": "Is Bulk Cancellation"
+   },
+   {
+    "fieldname": "request_payload",
+    "fieldtype": "Long Text",
+    "label": "Request Payload",
+    "read_only": 1
+   }
+  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],

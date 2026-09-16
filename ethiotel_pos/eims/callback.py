@@ -1,6 +1,8 @@
 import json
 
+from .audit import log_audit
 from .logging_setup import eims_logger
+from ethiotel_pos.notify import _enqueue, send_registered_receipt
 
 import frappe
 
@@ -91,6 +93,17 @@ class EIMSConnectorCallback:
                             )
 
                         processed += 1
+                        log_audit(
+                            "Callback Confirmation",
+                            invoice_type="Sales Invoice",
+                            invoice=invoice_name,
+                            eims_status="Registered",
+                            document_number=doc_no,
+                            success=True,
+                            description="Async EIRMS confirmation received",
+                            response_brief=raw_body[:2000],
+                        )
+                        _enqueue(send_registered_receipt, invoice_name=invoice_name, doctype="Sales Invoice")
                     else:
                         rule_error = item.get("ruleError")
                         error_detail = json.dumps(rule_error) if rule_error else json.dumps(item)
@@ -101,6 +114,16 @@ class EIMSConnectorCallback:
                             "custom_document_number": last_doc_num,
                         }, update_modified=True)
                         frappe.log_error(message=error_detail, title=f"EIMS Callback Rejection: {invoice_name}")
+                        log_audit(
+                            "Callback Confirmation",
+                            invoice_type="Sales Invoice",
+                            invoice=invoice_name,
+                            eims_status="Failed",
+                            document_number=last_doc_num,
+                            success=False,
+                            description="Async EIRMS confirmation rejected the invoice",
+                            response_brief=error_detail[:2000],
+                        )
                         failed += 1
 
                 except Exception:

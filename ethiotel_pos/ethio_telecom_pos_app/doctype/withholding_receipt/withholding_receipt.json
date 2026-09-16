@@ -7,51 +7,65 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "receipt_type",
-  "eims_status",
+  "request_tab",
   "receipt_number",
-  "receipt_date",
+  "reason",
   "receipt_counter",
   "manual_receipt_number",
-  "column_break_receipt",
+  "column_break_request",
   "source_system_type",
   "source_system_number",
+  "parties_tab",
+  "agent_name",
+  "agent_tin",
+  "agent_address",
+  "column_break_parties",
+  "seller_name",
   "seller_tin",
-  "section_break_invoice",
+  "invoice_tab",
+  "invoice_number",
+  "invoice_date",
+  "column_break_invoice",
   "invoice_irn",
   "currency",
   "exchange_rate",
-  "section_break_withhold",
+  "withhold_tab",
   "withholding_type",
   "withholding_rate",
-  "column_break_withhold",
+  "column_break_tab",
   "pre_tax_amount",
   "withholding_amount",
-  "section_break_reason",
-  "reason",
-  "section_break_response",
+  "payment_tab",
+  "payment_entry",
+  "paid_amount",
+  "column_break_payment",
+  "mode_of_payment",
+  "payment_date",
+  "payment_reference",
+  "collector_name",
+  "signature_tab",
+  "signatory_name",
+  "signatory_title",
+  "column_break_signature",
+  "seal_notes",
+  "receipt_view_tab",
+  "receipt_viewport",
+  "response_tab",
+  "eims_status",
+  "receipt_date",
   "rrn",
   "mor_receipt_id",
   "column_break_response",
   "returned_rnn",
   "qr_code_base64",
   "response_log",
-  "section_break_payload",
-  "receipt_viewport",
   "request_payload"
  ],
  "fields": [
   {
-   "fieldname": "receipt_type",
-   "fieldtype": "Data",
-   "label": "Receipt Type",
-   "read_only": 1
-  },
-  {
-   "fieldname": "eims_status",
-   "fieldtype": "Select",
-   "label": "EIRMS Status",
-   "options": "Pending\nActive\nFailed"
+   "fieldname": "request_tab",
+   "fieldtype": "Tab Break",
+   "label": "Details"
   },
   {
    "fieldname": "receipt_number",
@@ -61,9 +75,9 @@
    "reqd": 1
   },
   {
-   "fieldname": "receipt_date",
-   "fieldtype": "Datetime",
-   "label": "Receipt Date"
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
   },
   {
    "fieldname": "receipt_counter",
@@ -76,7 +90,7 @@
    "label": "Manual Receipt Number"
   },
   {
-   "fieldname": "column_break_receipt",
+   "fieldname": "column_break_request",
    "fieldtype": "Column Break"
   },
   {
@@ -90,21 +104,62 @@
    "label": "Source System Number"
   },
   {
+   "fieldname": "parties_tab",
+   "fieldtype": "Tab Break",
+   "label": "Parties"
+  },
+  {
+   "fieldname": "agent_name",
+   "fieldtype": "Data",
+   "label": "Your Company Name (Withholding Agent)"
+  },
+  {
+   "fieldname": "agent_tin",
+   "fieldtype": "Data",
+   "label": "Your TIN"
+  },
+  {
+   "fieldname": "agent_address",
+   "fieldtype": "Small Text",
+   "label": "Your Address"
+  },
+  {
+   "fieldname": "column_break_parties",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "seller_name",
+   "fieldtype": "Data",
+   "label": "Seller Trading Name (Withholdee)"
+  },
+  {
    "fieldname": "seller_tin",
    "fieldtype": "Data",
    "label": "Seller TIN"
   },
   {
-   "fieldname": "section_break_invoice",
-   "fieldtype": "Section Break",
+   "fieldname": "invoice_tab",
+   "fieldtype": "Tab Break",
    "label": "Invoice Detail"
+  },
+  {
+   "fieldname": "invoice_number",
+   "fieldtype": "Data",
+   "label": "Invoice Number"
+  },
+  {
+   "fieldname": "invoice_date",
+   "fieldtype": "Date",
+   "label": "Invoice Date"
+  },
+  {
+   "fieldname": "column_break_invoice",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "invoice_irn",
    "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Invoice IRN",
-   "reqd": 1
+   "label": "Invoice IRN"
   },
   {
    "fieldname": "currency",
@@ -119,14 +174,13 @@
    "precision": "6"
   },
   {
-   "fieldname": "section_break_withhold",
-   "fieldtype": "Section Break",
-   "label": "Withholding Detail"
+   "fieldname": "withhold_tab",
+   "fieldtype": "Tab Break",
+   "label": "Withhold Detail"
   },
   {
    "fieldname": "withholding_type",
    "fieldtype": "Select",
-   "in_list_view": 1,
    "label": "Withhold Type",
    "options": "\nTWTH\nIWTH",
    "reqd": 1
@@ -134,40 +188,122 @@
   {
    "fieldname": "withholding_rate",
    "fieldtype": "Float",
-   "label": "Rate",
+   "label": "Rate (%)",
    "precision": "6"
   },
   {
-   "fieldname": "column_break_withhold",
+   "fieldname": "column_break_tab",
    "fieldtype": "Column Break"
   },
   {
    "fieldname": "pre_tax_amount",
    "fieldtype": "Currency",
-   "label": "PreTax Amount",
+   "label": "Gross Supply Amount / PreTax",
    "options": "currency"
   },
   {
    "fieldname": "withholding_amount",
    "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Withholding Amount",
+   "label": "Withheld Amount",
+   "options": "currency"
+  },
+  {
+   "fieldname": "payment_tab",
+   "fieldtype": "Tab Break",
+   "label": "Payment Reference"
+  },
+  {
+   "fieldname": "payment_entry",
+   "fieldtype": "Link",
+   "label": "Payment Entry",
+   "options": "Payment Entry"
+  },
+  {
+   "fieldname": "paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid Amount",
    "options": "currency",
-   "reqd": 1
+   "read_only": 1
   },
   {
-   "fieldname": "section_break_reason",
-   "fieldtype": "Section Break"
+   "fieldname": "column_break_payment",
+   "fieldtype": "Column Break"
   },
   {
-   "fieldname": "reason",
+   "fieldname": "mode_of_payment",
+   "fieldtype": "Data",
+   "label": "Mode of Payment",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payment_date",
+   "fieldtype": "Date",
+   "label": "Payment Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payment_reference",
+   "fieldtype": "Data",
+   "label": "Payment Reference",
+   "read_only": 1
+  },
+  {
+   "fieldname": "collector_name",
+   "fieldtype": "Data",
+   "label": "Collector / Payee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signature_tab",
+   "fieldtype": "Tab Break",
+   "label": "Signatures & Seals"
+  },
+  {
+   "fieldname": "signatory_name",
+   "fieldtype": "Data",
+   "label": "Authorized Signatory Name"
+  },
+  {
+   "fieldname": "signatory_title",
+   "fieldtype": "Data",
+   "label": "Job Title / Designation"
+  },
+  {
+   "fieldname": "column_break_signature",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "seal_notes",
    "fieldtype": "Small Text",
-   "label": "Reason"
+   "label": "Company Seal / Stamp Notes"
   },
   {
-   "fieldname": "section_break_response",
-   "fieldtype": "Section Break",
+   "fieldname": "receipt_view_tab",
+   "fieldtype": "Tab Break",
+   "label": "Receipt"
+  },
+  {
+   "fieldname": "receipt_viewport",
+   "fieldtype": "HTML",
+   "label": "Receipt Viewport",
+   "read_only": 1
+  },
+  {
+   "fieldname": "response_tab",
+   "fieldtype": "Tab Break",
    "label": "MoR Response"
+  },
+  {
+   "fieldname": "eims_status",
+   "fieldtype": "Select",
+   "label": "EIRMS Status",
+   "options": "Pending\nActive\nFailed"
+  },
+  {
+   "fieldname": "receipt_date",
+   "fieldtype": "Datetime",
+   "label": "Receipt Date",
+   "read_only": 1
   },
   {
    "fieldname": "rrn",
@@ -204,16 +340,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "section_break_payload",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "receipt_viewport",
-   "fieldtype": "HTML",
-   "label": "Receipt Viewport",
-   "read_only": 1
-  },
-  {
    "fieldname": "request_payload",
    "fieldtype": "Long Text",
    "label": "Request Payload",
@@ -221,7 +347,7 @@
   }
  ],
  "links": [],
- "modified": "2026-08-31 16:14:45.835969",
+ "modified": "2026-09-01 10:38:47.835403",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "Withholding Receipt",

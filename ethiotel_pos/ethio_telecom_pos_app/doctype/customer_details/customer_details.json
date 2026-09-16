@@ -11,6 +11,7 @@
   "city",
   "kebele",
   "tin_number",
+  "vat_number",
   "legal_name",
   "phone",
   "column_break_spfa",
@@ -20,7 +21,11 @@
   "house_number",
   "id_type",
   "id_number",
-  "email"
+  "email",
+  "sub_tin",
+  "trade_name",
+  "sub_city",
+  "locality"
  ],
  "fields": [
   {
@@ -39,7 +44,7 @@
    "fieldname": "id_type",
    "fieldtype": "Select",
    "label": "ID Type",
-   "options": "KID\nNID\nPID\nGID"
+   "options": "NID\nKID\nSID\nWID\nPST\nDLS\nMRS"
   },
   {
    "fieldname": "column_break_spfa",
@@ -99,12 +104,37 @@
    "fieldname": "phone",
    "fieldtype": "Data",
    "label": "Phone"
+  },
+  {
+   "fieldname": "sub_tin",
+   "fieldtype": "Data",
+   "label": "Sub TIN"
+  },
+  {
+   "fieldname": "trade_name",
+   "fieldtype": "Data",
+   "label": "Trade Name"
+  },
+  {
+   "fieldname": "sub_city",
+   "fieldtype": "Data",
+   "label": "Sub City"
+  },
+  {
+   "fieldname": "locality",
+   "fieldtype": "Data",
+   "label": "Locality"
+  },
+  {
+   "fieldname": "vat_number",
+   "fieldtype": "Data",
+   "label": "VAT Number"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-29 12:15:30.748019",
+ "modified": "2026-09-02 11:37:39.698285",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "Customer Details",
@@ -126,6 +156,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

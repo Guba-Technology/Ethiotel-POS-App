@@ -5,10 +5,29 @@ from frappe import _
 from ethiotel_pos.eims_connector import EIMSConnector
 
 
-@frappe.whitelist(allow_guest=True)
+def _require_eims_setting_read():
+    """Bearer tokens grant full MoR sender rights; only users who can read the
+    EIMS Setting (System Manager) may mint them."""
+    if frappe.session.user == "Guest":
+        frappe.throw("Not permitted to access EIMS credentials.", frappe.PermissionError)
+    if not frappe.has_permission("EIMS Setting", "read"):
+        frappe.throw("Not permitted to access EIMS credentials.", frappe.PermissionError)
+
+
+def _require_invoice_write(invoice_name):
+    if not frappe.has_permission("Sales Invoice", "submit", doc=invoice_name) \
+            and not frappe.has_permission("Sales Invoice", "write", doc=invoice_name):
+        frappe.throw(
+            f"Not permitted to submit invoice '{invoice_name}' to EIMS.",
+            frappe.PermissionError,
+        )
+
+
+@frappe.whitelist()
 def get_token(force_refresh=False):
     """Return a valid EIMS token. Query param `force_refresh=1` forces renewal."""
     try:
+        _require_eims_setting_read()
         connector = EIMSConnector()
         token = connector.get_valid_token(force_refresh=bool(int(force_refresh)) if isinstance(force_refresh, (str, int)) else bool(force_refresh))
         return {"status": "ok", "token": token}
@@ -23,6 +42,7 @@ def submit_invoice(invoice_name):
         if not invoice_name:
             frappe.throw(_("Missing invoice_name"))
 
+        _require_invoice_write(invoice_name)
         connector = EIMSConnector()
         res = connector.submit_single_invoice(invoice_name)
         return {"status": "ok", "result": res}
@@ -44,6 +64,12 @@ def submit_bulk(invoices_json):
                 parsed = [n.strip() for n in invoices_json.split(',') if n.strip()]
         else:
             parsed = invoices_json
+
+        if not isinstance(parsed, list):
+            frappe.throw(_("invoices_json must be a list of invoice names."))
+
+        for name in parsed:
+            _require_invoice_write(name)
 
         connector = EIMSConnector()
         res = connector.submit_bulk_invoices(parsed)
@@ -104,6 +130,7 @@ def submit_invoice_and_update(invoice_name):
         if not invoice_name:
             frappe.throw(_("Missing invoice_name"))
 
+        _require_invoice_write(invoice_name)
         connector = EIMSConnector()
         res = connector.submit_single_invoice(invoice_name)
 
@@ -125,6 +152,12 @@ def submit_bulk_and_update(invoices_json):
                 parsed = [n.strip() for n in invoices_json.split(',') if n.strip()]
         else:
             parsed = invoices_json
+
+        if not isinstance(parsed, list):
+            frappe.throw(_("invoices_json must be a list of invoice names."))
+
+        for name in parsed:
+            _require_invoice_write(name)
 
         connector = EIMSConnector()
         batch = connector.submit_bulk_invoices(parsed)

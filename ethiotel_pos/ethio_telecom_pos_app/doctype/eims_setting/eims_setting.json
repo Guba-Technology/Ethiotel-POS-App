@@ -8,16 +8,33 @@
  "field_order": [
   "api_key",
   "default_system_number",
-   "last_document_number",
-   "column_break_hsmj",
-   "seller_tin",
-   "base_url",
-   "section_break_ilyk",
-   "client_data_list",
-   "default_taxes_and_charges_template",
-   "current_access_token",
-   "token_expiry"
-  ],
+  "last_document_number",
+  "column_break_hsmj",
+  "seller_tin",
+  "base_url",
+  "section_break_ilyk",
+  "client_data_list",
+  "default_taxes_and_charges_template",
+  "current_access_token",
+  "token_expiry",
+  "section_break_compliance",
+  "auto_retry_failed_submissions",
+  "email_receipt_delivery",
+  "sms_enabled",
+  "column_break_ifhi",
+  "max_auto_retries",
+  "min_with_am_goods",
+  "min_with_am_services",
+  "section_break_public_verify",
+  "public_verify_enabled",
+  "enforce_geo_fence",
+  "geo_fence_polygon",
+  "device_location_report_interval",
+  "remote_verify_from_mor",
+  "section_break_data_management",
+  "service_terminated",
+  "terminated_on"
+ ],
  "fields": [
   {
    "fieldname": "api_key",
@@ -65,24 +82,130 @@
    "label": "Default System Number",
    "read_only": 1
   },
-   {
-    "fieldname": "last_document_number",
-    "fieldtype": "Int",
-    "label": "Last Document Number"
-   },
-   {
-    "fieldname": "default_taxes_and_charges_template",
-    "fieldtype": "Link",
-    "label": "Default Tax Template",
-    "options": "Sales Taxes and Charges Template",
-    "description": "Default Sales Taxes and Charges Template applied to POS invoices when no template is chosen at check-in or set on the POS Profile."
-   }
-  ],
+  {
+   "fieldname": "last_document_number",
+   "fieldtype": "Int",
+   "label": "Last Document Number"
+  },
+  {
+   "description": "Default Sales Taxes and Charges Template applied to POS invoices when no template is chosen at check-in or set on the POS Profile.",
+   "fieldname": "default_taxes_and_charges_template",
+   "fieldtype": "Link",
+   "label": "Default Tax Template",
+   "options": "Sales Taxes and Charges Template"
+  },
+  {
+   "fieldname": "section_break_compliance",
+   "fieldtype": "Section Break",
+   "label": "Compliance Settings"
+  },
+  {
+   "default": "1",
+   "description": "Hourly scheduler re-submits invoices stuck in Not Submitted / Failed / Pending to EIRMS.",
+   "fieldname": "auto_retry_failed_submissions",
+   "fieldtype": "Check",
+   "label": "Auto-Retry Failed/Backlogged Submissions"
+  },
+  {
+   "default": "3",
+   "description": "Stop auto-retrying an invoice after this many failed attempts to avoid wedging the queue.",
+   "fieldname": "max_auto_retries",
+   "fieldtype": "Int",
+   "label": "Max Auto-Retries Per Invoice"
+  },
+  {
+   "default": "0",
+   "description": "When enabled, sales whose GPS point is outside the fence (Art 4(5)(c)) are blocked at registration until corrected.",
+   "fieldname": "enforce_geo_fence",
+   "fieldtype": "Check",
+   "label": "Enforce Geo-Fence (Block Sales Outside Authorized Area)"
+  },
+  {
+   "description": "Authorized work area as WKT POLYGON((lng lat, ...)) or JSON [[lng, lat], ...]. Per-device fences on the mPOS Device doctype override this.",
+   "fieldname": "geo_fence_polygon",
+   "fieldtype": "Long Text",
+   "label": "Default Geo-Fence Polygon"
+  },
+  {
+   "default": "30",
+   "description": "Frequency of the periodic mPOS device location report to the Authority (Art 4(5)(a)).",
+   "fieldname": "device_location_report_interval",
+   "fieldtype": "Int",
+   "label": "Device Location Report Interval (Minutes)"
+  },
+  {
+   "default": "0",
+   "description": "Send the buyer a PDF of the registered invoice after EIRMS confirmation (Art 4(1), 22(5)(b)). Also used for cancellation notices.",
+   "fieldname": "email_receipt_delivery",
+   "fieldtype": "Check",
+   "label": "Email Registered Receipt to Buyer"
+  },
+  {
+   "default": "0",
+   "description": "Reserved for SMS receipt notifications. No provider is wired yet; enabling only logs attempts.",
+   "fieldname": "sms_enabled",
+   "fieldtype": "Check",
+   "label": "SMS Notifications Enabled"
+  },
+  {
+   "fieldname": "section_break_public_verify",
+   "fieldtype": "Section Break",
+   "label": "Public Invoice Verification"
+  },
+  {
+   "default": "0",
+   "description": "Allows any visitor to verify an invoice by IRN at /invoice_verify. Returns seller name, date, total and status only.",
+   "fieldname": "public_verify_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Public Invoice Verification"
+  },
+  {
+   "default": "0",
+   "description": "Falls back to a live MoR /v1/verify lookup for IRNs not found in this system. Uses the seller's credentials; recommended only for dedicated installations.",
+   "fieldname": "remote_verify_from_mor",
+   "fieldtype": "Check",
+   "label": "Query MoR When Not Found Locally"
+  },
+  {
+   "fieldname": "section_break_data_management",
+   "fieldtype": "Section Break",
+   "label": "Data Management"
+  },
+  {
+   "default": "0",
+   "description": "When ticked, further EIRMS registrations are blocked (Directive Art 8). Export your data before purging; use eims.data_management.terminate_service via the terminal/Server Script.",
+   "fieldname": "service_terminated",
+   "fieldtype": "Check",
+   "label": "Service Terminated"
+  },
+  {
+   "fieldname": "terminated_on",
+   "fieldtype": "Date",
+   "label": "Terminated On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ifhi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Set the minimum amount of transaction cost to apply withholding for an invoice to be prepared for goods. the default is 20,000",
+   "fieldname": "min_with_am_goods",
+   "fieldtype": "Currency",
+   "label": "Minimum Transaction Amount for Withholding Goods"
+  },
+  {
+   "description": "Set the minimum amount of transaction cost to apply withholding for an invoice to be prepared for services. the default is 10,000",
+   "fieldname": "min_with_am_services",
+   "fieldtype": "Currency",
+   "label": "Minimum Transaction Amount for Withholding Services"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-24 09:29:04.123018",
+ "modified": "2026-09-14 10:20:15.237195",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "EIMS Setting",
@@ -101,6 +224,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

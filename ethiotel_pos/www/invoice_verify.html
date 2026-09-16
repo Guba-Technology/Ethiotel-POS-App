@@ -1,0 +1,160 @@
+{% extends "templates/web.html" %}
+
+{% block title %}Invoice Verification{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block page_content %}
+<style>
+	/* Hide the Frappe/ERPNext top navbar and standard page header on this page only */
+	.navbar,
+	.web-footer,
+	.page-head {
+		display: none !important;
+	}
+	body {
+		background: #f4f6f9;
+	}
+	.eims-wrapper {
+		max-width: 560px;
+		margin: 60px auto;
+		padding: 0 16px;
+	}
+	.eims-card {
+		background: #fff;
+		border-radius: 12px;
+		box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+		overflow: hidden;
+		border: 1px solid #e8eaed;
+	}
+	.eims-header {
+		background: linear-gradient(135deg, #1a2b4c 0%, #335b9c 100%);
+		color: #fff;
+		padding: 28px 32px;
+	}
+	.eims-header h4 {
+		margin: 0 0 4px;
+		font-weight: 600;
+		font-size: 20px;
+		color: #fff;
+	}
+	.eims-header p {
+		margin: 0;
+		opacity: 0.8;
+		font-size: 13px;
+	}
+	.eims-body {
+		padding: 28px 32px 32px;
+	}
+	.eims-body .form-group label {
+		font-weight: 600;
+		font-size: 13px;
+		color: #445;
+	}
+	.eims-body .form-control {
+		border-radius: 8px;
+		border: 1px solid #d7dce2;
+		padding: 10px 12px;
+		height: auto;
+		box-shadow: none;
+	}
+	.eims-body .form-control:focus {
+		border-color: #24406e;
+		box-shadow: 0 0 0 3px rgba(36,64,110,0.12);
+	}
+	.eims-submit {
+		width: 100%;
+		border-radius: 8px;
+		padding: 10px;
+		font-weight: 600;
+		background: #24406e;
+		border-color: #24406e;
+	}
+	.eims-submit:hover {
+		background: #1a2f52;
+	}
+	#result table {
+		margin-top: 8px;
+		border-radius: 8px;
+		overflow: hidden;
+	}
+	#result th {
+		width: 130px;
+		background: #f8f9fb;
+		color: #556;
+		font-size: 13px;
+	}
+	#result td {
+		font-size: 14px;
+	}
+	.label-success { background:#1e9e5a; }
+	.label-warning { background:#d98c1f; }
+	.label-danger  { background:#c0392b; }
+</style>
+
+<div class="eims-wrapper">
+	<div class="eims-card">
+		<div class="eims-header">
+			<h4>Verify a Tax Invoice (EIMS)</h4>
+			<p>Enter the Invoice Reference Number (IRN) printed on your receipt, or paste the QR payload.</p>
+		</div>
+		<div class="eims-body">
+			<form id="verify-form">
+				<div class="form-group">
+					<label for="irn">IRN</label>
+					<input class="form-control" id="irn" name="irn" placeholder="e.g. TCT...123456789" autocomplete="off" />
+				</div>
+				<div class="form-group">
+					<label for="qr-payload">QR Payload (optional)</label>
+					<input class="form-control" id="qr-payload" name="qr_payload" placeholder="Paste the QR content or verification URL" autocomplete="off" />
+				</div>
+				<button class="btn btn-primary eims-submit" type="submit">Verify</button>
+			</form>
+			<div id="result" style="display:none; margin-top:20px;"></div>
+		</div>
+	</div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+	frappe.ready(function () {
+		$("#verify-form").on("submit", function (e) {
+			e.preventDefault();
+			var result = $("#result");
+			result.hide();
+			frappe.call({
+				method: "ethiotel_pos.eims_verify_public.verify_public",
+				args: {
+					irn: $("#irn").val() || "",
+					qr_payload: $("#qr-payload").val() || "",
+				},
+				callback: function (r) {
+					var d = r.message || {};
+					result.show();
+					var ok = d.verified === true;
+					var badge = ok ? '<span class="label label-success">AUTHENTIC / REGISTERED</span>'
+						: (d.cancelled === true ? '<span class="label label-warning">CANCELLED</span>'
+							: '<span class="label label-danger">NOT REGISTERED</span>');
+					var html = '<table class="table table-bordered">';
+					html += '<tr><th>Status</th><td>' + badge + '</td></tr>';
+					html += '<tr><th>Seller</th><td>' + (d.seller_legal_name || "-") + '</td></tr>';
+					html += '<tr><th>Date</th><td>' + (d.document_date || "-") + '</td></tr>';
+					html += '<tr><th>Total</th><td>' + (d.total_value != null ? d.total_value : "-") + '</td></tr>';
+					html += '<tr><th>IRN</th><td>' + (d.irn || "-") + '</td></tr>';
+					if (ok || d.cancelled === true) {
+						html += '<tr><td colspan="2"><a class="btn btn-primary btn-xs" href="/invoice_receipt?irn=' + encodeURIComponent(d.irn || '') + '">Open full receipt</a></td></tr>';
+					}
+					html += '</table>';
+					result.html(html);
+				},
+				error: function (r) {
+					result.show();
+					var msg = (r && r.message) || "Verification service unavailable.";
+					result.html('<div class="alert alert-danger">' + msg + '</div>');
+				},
+			});
+		});
+	});
+</script>
+{% endblock %}

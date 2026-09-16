@@ -20,7 +20,8 @@
   "verification_summary",
   "exception_logs_section",
   "error_logs",
-  "report_data"
+  "report_data",
+  "request_payload"
  ],
  "fields": [
   {
@@ -93,13 +94,19 @@
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "report_data",
-   "fieldtype": "Text Editor",
-   "hidden": 1,
-   "label": "Report Data",
-   "print_hide": 1,
-   "report_hide": 1
-  },
+"fieldname": "report_data",
+    "fieldtype": "Text Editor",
+    "hidden": 1,
+    "label": "Report Data",
+    "print_hide": 1,
+    "report_hide": 1
+   },
+   {
+    "fieldname": "request_payload",
+    "fieldtype": "Long Text",
+    "label": "Request Payload",
+    "read_only": 1
+   },
   {
    "fieldname": "pos_invoice",
    "fieldtype": "Link",

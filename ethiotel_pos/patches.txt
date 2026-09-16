@@ -29,3 +29,7 @@ ethiotel_pos.patches.add_pos_scale_indexes
 ethiotel_pos.patches.add_offline_sync_delta_indexes
 ethiotel_pos.patches.add_mor_fields_to_sales_invoice
 ethiotel_pos.patches.add_mor_rrn_to_sales_invoice
+ethiotel_pos.patches.add_eims_retry_fields
+ethiotel_pos.patches.add_eims_geo_fields
+ethiotel_pos.patches.remove_eims_note_fields
+ethiotel_pos.patches.hide_eims_shortcuts

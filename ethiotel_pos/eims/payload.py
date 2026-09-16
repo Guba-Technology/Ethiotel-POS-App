@@ -1,17 +1,201 @@
 import json
 import re
 
+from hypothesis import settings
+
 from frappe.utils import get_datetime, now_datetime
 
 from .constants import (
     ID_TYPE_ALIASES,
     ID_TYPES,
     MOR_PAYMENT_MODES,
+    SOURCE_SYSTEM_GPS_FIELDS,
     VALID_UNITS,
     WALK_IN_CUSTOMER,
 )
+from .geo import enforce_geo_fence
 
 import frappe
+
+
+def validate_invoice_for_eims(doc):
+    """EIMS validations that run during Sales Invoice / POS Invoice validate
+    (before save). Catches data errors early instead of at registration time."""
+    settings = frappe.get_doc("EIMS Setting")
+    if doc.doctype not in ("Sales Invoice", "POS Invoice"):
+        return
+
+    is_walk_in = (doc.customer or "") == WALK_IN_CUSTOMER
+    company_link = f"/app/company/{doc.company}" if doc.company else ""
+
+    # --- TransactionType ---
+    transaction_type = getattr(doc, "custom_transaction_type", "") or ""
+    if not transaction_type:
+        customer_type = frappe.db.get_value("Customer", doc.customer, "customer_type")
+        t_map = {"Individual": "B2C", "Company": "B2B", "Government": "G2C", "Partnership": "B2B"}
+        transaction_type = t_map.get(customer_type, "")
+    if not transaction_type:
+        if is_walk_in:
+            transaction_type = "B2C"
+        else:
+            frappe.throw(
+                "Please set the <b>Transaction Type</b> on this invoice.",
+                title="EIMS Transaction Type Required",
+            )
+
+    # --- Customer Details must exist for non-walk-in ---
+    if not is_walk_in:
+        if not frappe.db.exists("Customer Details", doc.customer):
+            frappe.throw(
+                f"Please create a <b>Customer Details</b> document for "
+                f"Customer <b>{doc.customer}</b> before saving.",
+                title="EIMS Schema Validation Error",
+            )
+
+    # --- Customer data validations (non-walk-in only) ---
+    cust_link = ""
+    if not is_walk_in:
+        cust_details = frappe.get_doc("Customer Details", doc.customer)
+        cust_link = f"/app/customer-details/{cust_details.name}"
+
+        # TIN
+        raw_tin = cust_details.tin_number or ""
+        clean_tin = re.sub(r"\D", "", str(raw_tin))
+        if transaction_type not in ("B2C", "G2C"):
+            if not clean_tin or len(clean_tin) < 10 or len(clean_tin) > 20:
+                frappe.throw(
+                    f"<b>TIN Number</b> must be purely numeric and between 10 and 20 "
+                    f"digits long on <a href='{cust_link}'>{cust_details.name}</a>. "
+                    f"Found: '{raw_tin}'.",
+                    title="EIMS Schema Error: Invalid TIN",
+                )
+        elif clean_tin and (len(clean_tin) < 10 or len(clean_tin) > 20):
+            frappe.throw(
+                f"<b>TIN Number</b> must be purely numeric and between 10 and 20 "
+                f"digits long on <a href='{cust_link}'>{cust_details.name}</a>. "
+                f"Found: '{raw_tin}'.",
+                title="EIMS Schema Error: Invalid TIN",
+            )
+
+        # Email
+        buyer_email = (cust_details.email or "").strip()
+        if not buyer_email:
+            buyer_email = (frappe.db.get_value("Customer", doc.customer, "custom_eims_email") or "").strip()
+        if buyer_email and not re.match(r"^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$", buyer_email):
+            frappe.throw(
+                f"<b>Email</b> is invalid on <a href='{cust_link}'>{cust_details.name}</a>. "
+                f"Found: '{buyer_email}'.",
+                title="EIMS Schema Error: Invalid Email",
+            )
+
+        # Region
+        buyer_region = (cust_details.region or "").strip()
+        if buyer_region and (not buyer_region.isdigit() or not (1 <= len(buyer_region) <= 3)):
+            frappe.throw(
+                f"<b>Region</b> must be a numeric code between 1 and 3 digits "
+                f"on <a href='{cust_link}'>{cust_details.name}</a>. "
+                f"Found: '{buyer_region}'.",
+                title="EIMS Schema Error: Invalid Region Code",
+            )
+        elif not buyer_region:
+            frappe.throw(
+                f"<b>Region</b> is required for EIMS submission on "
+                f"<a href='{cust_link}'>{cust_details.name}</a>.",
+                title="EIMS Schema Error: Missing Region Code",
+            )
+
+    # --- CRE/DEB must reference a registered original invoice ---
+    if getattr(doc, "is_return", 0) or getattr(doc, "is_debit_note", 0):
+        note_type = "DEB" if getattr(doc, "is_debit_note", 0) else "CRE"
+        original_name = doc.get("return_against") or ""
+        if original_name:
+            original_irn = (
+                frappe.db.get_value("Sales Invoice", original_name, "custom_irn")
+                or frappe.db.get_value("POS Invoice", original_name, "custom_irn")
+            )
+            if not original_irn:
+                frappe.throw(
+                    f"<b>{note_type}</b> notes must reference an EIRMS-registered original invoice. "
+                    f"Set <b>Return Against</b> to an invoice with a populated <b>custom_irn</b>.",
+                    title="EIMS Schema Error: Missing Original Invoice IRN",
+                )
+        else:
+            frappe.throw(
+                f"<b>{note_type}</b> notes require <b>Return Against</b> to be set.",
+                title="EIMS Schema Error: Missing Return Against",
+            )
+
+    # --- Payment mode validation ---
+    payment_entries = doc.get("payments") or []
+    if payment_entries:
+        payment_mode = payment_entries[0].mode_of_payment
+        if payment_mode and not resolve_mor_payment_mode(payment_mode):
+            frappe.throw(
+                f"Unsupported <b>Mode of Payment</b>: '{payment_mode}'. "
+                f"MoR accepts only: CASH, CHEQUE, CPO, Local Bank Transfer, SWIFT, "
+                f"Wire Transfer, Letter of Credit, Card.",
+                title="EIMS Payment Mode Error",
+            )
+
+    # --- Withholding validations ---
+    has_withholding = False
+    for te in (doc.taxes or []):
+        account = te.account_head
+        if not account:
+            continue
+        if classify_withholding(account):
+            has_withholding = True
+            break
+
+    if has_withholding:
+        if transaction_type not in ("B2B", "B2G"):
+            frappe.throw(
+                f"Withholding tax accounts are present but <b>Transaction Type</b> is "
+                f"'{transaction_type}'. Withholding is only applicable for B2B or B2G.",
+                title="EIMS Withholding Validation Error",
+            )
+
+        service_total = 0.0
+        goods_total = 0.0
+        for item in (doc.items or []):
+            amount = abs(float(item.base_net_amount or item.net_amount or 0.0))
+            if not amount:
+                amount = abs(float(item.qty or 0.0)) * abs(float(item.base_rate or item.rate or 0.0))
+            is_services = frappe.db.get_value("Item", item.item_code, "item_group") if item.item_code else None
+            is_stock = True
+            if is_services and is_services.lower() == "services":
+                is_stock = False
+            if is_stock:
+                goods_total += amount
+            else:
+                service_total += amount
+        min_withholding_goods_threshold = settings.min_with_am_goods or 20000
+        min_withholding_service_threshold = settings.min_with_am_services or 10000
+        if service_total <= min_withholding_service_threshold and goods_total <= min_withholding_goods_threshold:
+            frappe.throw(
+                "Withholding tax accounts are present but item totals do not meet the "
+                "thresholds: goods must exceed <b>20,000</b> and services must exceed "
+                "<b>10,000</b>. Current totals — Goods: {:,.2f}, Services: {:,.2f}.".format(
+                    goods_total, service_total
+                ),
+                title="EIMS Withholding Threshold Error",
+            )
+
+    # --- Negative-value checks (available at validate time) ---
+    # Credit notes (is_return) legitimately carry negative qty/amounts; skip.
+    is_credit_note = bool(getattr(doc, "is_return", 0))
+    if float(doc.discount_amount or 0) < 0:
+        frappe.throw(
+            "<b>Discount</b> cannot be negative for EIMS submission.",
+            title="EIMS Schema Error: Negative Discount",
+        )
+    if not is_credit_note:
+        for item in (doc.items or []):
+            if float(item.qty or 0) < 0:
+                frappe.throw(
+                    f"<b>Quantity</b> for item <b>{item.item_code}</b> cannot be negative.",
+                    title="EIMS Schema Error: Negative Quantity",
+                )
 
 
 def _add_if_present(target_dict, key, value):
@@ -99,6 +283,21 @@ def _row_rate(te):
 
 
 def sum_withholding(invoice_doc, transaction_type=None):
+    if transaction_type not in ("B2B", "B2G"):
+        return 0.0, 0.0
+
+    service_total = 0.0
+    goods_total = 0.0
+    for item in (invoice_doc.items or []):
+        amount = abs(float(item.base_net_amount or item.net_amount or 0.0))
+        is_stock = frappe.db.get_value("Item", item.item_code, "is_stock_item") if item.item_code else 1
+        if is_stock:
+            goods_total += amount
+        else:
+            service_total += amount
+
+    if service_total <= 10000 and goods_total <= 20000:
+        return 0.0, 0.0
 
     transaction_wht = 0.0
     income_wht = 0.0
@@ -108,7 +307,6 @@ def sum_withholding(invoice_doc, transaction_type=None):
             continue
         category = classify_withholding(account)
         if category == "transaction_wht":
-            #absolute value of the rate.
             transaction_wht += abs(_row_rate(te))
         elif category == "income_wht" and transaction_type == "B2G":
             income_wht += abs(_row_rate(te))
@@ -116,35 +314,34 @@ def sum_withholding(invoice_doc, transaction_type=None):
 
 
 class EIMSConnectorPayload:
-    def build_invoice_payload(self, invoice_doc, override_doc_num=None, override_prev_irn=None):
+    def build_invoice_payload(self, invoice_doc, override_doc_num=None, override_prev_irn=None,
+                              override_note_type=None, override_note_ref_irn=None):
         company = frappe.get_doc("Company", invoice_doc.company)
         company_link = f"/app/company/{company.name}"
 
         is_walk_in = (invoice_doc.customer or "") == WALK_IN_CUSTOMER
-        customer_type = frappe.db.get_value("Customer", invoice_doc.customer, "customer_type")
-        transaction_type = ""
-        t_map = {
-            "Individual": "B2C",
-            "Company": "B2B",
-            "Government": "G2C",
-            "Partnership": "B2B"
-        }
-        transaction_type = t_map.get(customer_type, "")
-        if transaction_type == "":
-            if is_walk_in:
-                transaction_type = "B2C"
-            else:
-                frappe.throw(
-                    f"Customer Type in Customer Document is not supported: {customer_type}. "
-                    f"Only Individual, Company, Government and Partnership are supported."
-                )
 
-        if not is_walk_in and not frappe.db.exists("Customer Details", invoice_doc.customer):
+        # TransactionType preference: the user-set custom field wins; otherwise
+        # fall back to the customer-type mapping (preserves POS invoices which
+        # don't carry the Select field). Walk-in sales are always B2C.
+        transaction_type = getattr(invoice_doc, "custom_transaction_type", "") or ""
+        if not transaction_type:
+            customer_type = frappe.db.get_value("Customer", invoice_doc.customer, "customer_type")
+            t_map = {
+                "Individual": "B2C",
+                "Company": "B2B",
+                "Government": "G2C",
+                "Partnership": "B2B",
+            }
+            transaction_type = t_map.get(customer_type, "")
+        if not transaction_type and is_walk_in:
+            transaction_type = "B2C"
+        if not transaction_type:
             frappe.throw(
-                f"Missing Record: Please create a <b>Customer Details</b> document for Customer "
-                f"<b>{invoice_doc.customer}</b> before proceeding.",
-                title="EIMS Schema Validation Error"
+                "Please set the <b>Transaction Type</b> on this invoice before registering.",
+                title="EIMS Transaction Type Required",
             )
+
         customer = frappe.get_doc("Customer", invoice_doc.customer)
         customer_link = f"/app/customer/{customer.name}"
         if is_walk_in:
@@ -168,46 +365,12 @@ class EIMSConnectorPayload:
         # BuyerDetails.Tin — Conditional, required only if transaction is NOT B2C/G2C
         raw_tin = cust_details.tin_number or ""
         clean_tin = re.sub(r"\D", "", str(raw_tin))
-        if transaction_type not in ("B2C", "G2C"):
-            if not clean_tin or len(clean_tin) < 10 or len(clean_tin) > 20:
-                frappe.throw(
-                    f"Validation Error on <a href='{cust_link}'>Customer Details ({cust_details.name})</a>:<br><br>"
-                    f"<b>TIN Number</b> must be purely numeric and between 10 and 20 digits long. Found: '{raw_tin}'",
-                    title="EIMS Schema Error: Invalid TIN"
-                )
-        elif clean_tin and (len(clean_tin) < 10 or len(clean_tin) > 20):
-            frappe.throw(
-                f"Validation Error on <a href='{cust_link}'>Customer Details ({cust_details.name})</a>:<br><br>"
-                f"<b>TIN Number</b> must be purely numeric and between 10 and 20 digits long. Found: '{raw_tin}'",
-                title="EIMS Schema Error: Invalid TIN"
-            )
 
-        # BuyerDetails.Email — validate format only if present
         buyer_email = (cust_details.email or "").strip()
-        email_pattern = re.compile(r"^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$")
-        if buyer_email and not email_pattern.match(buyer_email):
-            frappe.throw(
-                f"Validation Error on <a href='{cust_link}'>Customer Details ({cust_details.name})</a>:<br><br>"
-                f"<b>Email</b> is invalid. It must match a standard email format (e.g., info@domain.com). "
-                f"Found: '{buyer_email}'",
-                title="EIMS Schema Error: Invalid Email"
-            )
+        if not buyer_email and not is_walk_in:
+            buyer_email = (customer.get("custom_eims_email") or "").strip()
 
-        # BuyerDetails.Region — Required, numeric 1-3 chars
         buyer_region = (cust_details.region or "").strip()
-        if buyer_region and (not buyer_region.isdigit() or not (1 <= len(buyer_region) <= 3)):
-            frappe.throw(
-                f"Validation Error on <a href='{cust_link}'>Customer Details ({cust_details.name})</a>:<br><br>"
-                f"<b>Region</b> must be a numeric code string between 1 and 3 digits (e.g., '13'). "
-                f"Found: '{buyer_region}'",
-                title="EIMS Schema Error: Invalid Region Code"
-            )
-        elif not buyer_region and not is_walk_in:
-            frappe.throw(
-                f"Validation Error on <a href='{cust_link}'>Customer Details ({cust_details.name})</a>:<br><br>"
-                f"<b>Region</b> is required for EIMS submission.",
-                title="EIMS Schema Error: Missing Region Code"
-            )
 
         seller_vat_number = company.custom_vat_number  # Conditional
         seller_email = self._require(company.email, "Email", company.name, company_link)
@@ -253,6 +416,47 @@ class EIMSConnectorPayload:
         else:
             prev_irn = self._lookup_irn_for_doc_num(doc_num - 1)
 
+        # Credit (CRE) / Debit (DEB) note detection, driven by ERPNext's
+        # native return fields (no custom fields needed):
+        #   - is_debit_note ("Is Rate Adjustment Entry (Debit Note)")
+        #       -> DEB (increases the original invoice's quantity/price)
+        #   - is_return (credit note) -> CRE (decreases it)
+        #   - otherwise               -> INV
+        # Both CRE and DEB reference the already-registered original invoice
+        # through RelatedDocument (the native return_against link). DEB keys
+        # off is_debit_note directly (not gated on is_return) so a
+        # rate-adjustment entry is always treated as a debit note against the
+        # return_against invoice.
+        if override_note_type:
+            note_type = override_note_type.strip().upper()
+        elif getattr(invoice_doc, "is_debit_note", 0):
+            note_type = "DEB"
+        elif getattr(invoice_doc, "is_return", 0):
+            note_type = "CRE"
+        else:
+            note_type = "INV"
+        if note_type not in ("INV", "CRE", "DEB"):
+            frappe.throw(
+                f"Unsupported EIMS note type '{note_type}' (expected INV, CRE or DEB).",
+                title="EIMS Schema Error: Invalid Note Type",
+            )
+
+        note_ref_irn = None
+        if note_type in ("CRE", "DEB"):
+            if override_note_ref_irn:
+                note_ref_irn = override_note_ref_irn
+            else:
+                original_name = invoice_doc.get("return_against") or None
+                note_ref_irn = self._lookup_irn_for_invoice(original_name) if original_name else None
+            if not note_ref_irn:
+                frappe.throw(
+                    f"Validation Error on Sales Invoice ({invoice_doc.name}):<br><br>"
+                    f"<b>{note_type}</b> notes must reference an EIRMS-registered original invoice. "
+                    f"Set <b>Return Against</b> to the original invoice whose <b>custom_irn</b> "
+                    f"is already populated, then try again.",
+                    title="EIMS Schema Error: Missing Original Invoice IRN",
+                )
+
         cashier_name = None
         sales_team_entries = invoice_doc.get("sales_team")
         if sales_team_entries:
@@ -263,16 +467,7 @@ class EIMSConnectorPayload:
         if payment_entries:
             payment_mode = payment_entries[0].mode_of_payment
             resolved_payment_mode = resolve_mor_payment_mode(payment_mode)
-            if not resolved_payment_mode:
-                frappe.throw(
-                    f"Unsupported <b>Mode of Payment</b>: '{payment_mode}'. "
-                    f"MoR accepts only: CASH, CHEQUE, CPO, Local Bank Transfer, SWIFT, "
-                    f"Wire Transfer, Letter of Credit, Card. Open the "
-                    f"<a href='/app/mode-of-payment/{payment_mode}'>{payment_mode}</a> "
-                    f"record and set <b>MoR Payment Mode</b> accordingly.",
-                    title="EIMS Payment Mode Error"
-                )
-            payment_mode = resolved_payment_mode
+            payment_mode = resolved_payment_mode or payment_mode
 
         raw_phone = cust_details.phone or getattr(invoice_doc, "contact_mobile", "") or ""
         clean_phone = raw_phone.replace("+251", "0").replace(" ", "")
@@ -288,7 +483,7 @@ class EIMSConnectorPayload:
                 "DocumentNumber": str(doc_num),
                 "Date": (get_datetime(invoice_doc.posting_date).strftime("%d-%m-%YT00:00:00")
                          if invoice_doc.posting_date else now_datetime().strftime("%d-%m-%YT00:00:00")),
-                "Type": "INV"
+                "Type": note_type
             },
             "SellerDetails": {
                 "Tin": self.settings.seller_tin,
@@ -363,9 +558,27 @@ class EIMSConnectorPayload:
         # first invoice (it is simply empty when there is no prior registration).
         payload["ReferenceDetails"]["PreviousIrn"] = prev_irn
 
+        if note_type in ("CRE", "DEB"):
+            payload["ReferenceDetails"]["RelatedDocument"] = note_ref_irn
+            payload["DocumentDetails"]["Reason"] = (
+                f"CREDIT NOTE for invoice {invoice_doc.name}" if note_type == "CRE"
+                else f"DEBIT NOTE for invoice {invoice_doc.name}"
+            )
+
         # SourceSystem
         _add_if_present(payload["SourceSystem"], "CashierName", cashier_name)
         _add_if_present(payload["SourceSystem"], "SalesPersonName", cashier_name)
+
+        # Art 4(5)(b): transaction geo-location (only when the invoice carries
+        # GPS coordinates). Real enforcement happens at sale/registration time
+        # via enforce_geo_fence; the payload just mirrors the recorded point.
+        gps_lat = getattr(invoice_doc, "custom_gps_lat", None)
+        gps_lng = getattr(invoice_doc, "custom_gps_lng", None)
+        if gps_lat is not None and gps_lng is not None and str(gps_lat).strip() and str(gps_lng).strip():
+            # payload["SourceSystem"][SOURCE_SYSTEM_GPS_FIELDS[0]] = float(gps_lat)
+            # payload["SourceSystem"][SOURCE_SYSTEM_GPS_FIELDS[1]] = float(gps_lng)
+            enforce_geo_fence(float(gps_lat), float(gps_lng), invoice_name=invoice_doc.name,
+                              invoice_type=invoice_doc.doctype)
 
         # PaymentDetails
         _add_if_present(payload["PaymentDetails"], "Mode", payment_mode)
@@ -401,9 +614,10 @@ class EIMSConnectorPayload:
                     break
 
         for idx, item in enumerate(invoice_doc.items, start=1):
-            base_rate = float(item.base_rate or 0.0)
-            qty = float(item.qty or 0.0)
-            line_net_amount = float(item.base_net_amount or item.net_amount or 0.0)
+            is_note = note_type in ("CRE", "DEB")
+            base_rate = abs(float(item.base_rate or 0.0))
+            qty = abs(float(item.qty or 0.0))
+            line_net_amount = abs(float(item.base_net_amount or item.net_amount or 0.0))
 
             # Per-item tax rate/code (item_tax_rate is a JSON map like
             # {"VAT15 - GT": 15}) — falls back to the header tax row.
@@ -429,7 +643,7 @@ class EIMSConnectorPayload:
          
             line_discount = 0.0
             pl_rate = float(item.get("price_list_rate") or 0)
-            amount_incl = float(item.amount or 0) or (base_rate * qty)
+            amount_incl = abs(float(item.amount or 0)) or (base_rate * qty)
             if qty and pl_rate > 0:
                 disc_incl = round(pl_rate * qty - amount_incl, 2)
                 if disc_incl > 0.005:

@@ -48,7 +48,6 @@ frappe.ui.form.on("Sales Invoice", {
 		switch (status) {
 			case "Registered":
 				add("Get Receipt", frm.events.get_receipt);
-				add("Get Withholding Receipt", frm.events.get_withholding_receipt);
 				add("Verify with MoR", frm.events.verify);
 				add("Cancel MoR Invoice", frm.events.cancel, true);
 				break;
@@ -320,69 +319,6 @@ frappe.ui.form.on("Sales Invoice", {
 		});
 	},
 
-	get_withholding_receipt: function (frm) {
-		frappe.call({
-			method: "ethiotel_pos.ethio_telecom_pos_app.doctype.withholding_receipt.withholding_receipt.create_withholding_receipt",
-			args: { sales_invoice: frm.doc.name },
-			freeze: true,
-			freeze_message: __("Preparing MoR withholding receipt…"),
-			callback: function (r) {
-				const res = r.message || {};
-
-				if (res.status === "ok" && res.receipt_name) {
-					frappe.show_alert({
-						message: res.already_created
-							? __("Existing withholding receipt opened for review.")
-							: __("Withholding receipt created — review it and click Authorize MoR Withholding."),
-						indicator: res.already_created ? "blue" : "green",
-					});
-					frappe.set_route("Form", "Withholding Receipt", res.receipt_name);
-					return;
-				}
-
-				if (res.status === "no_withholding") {
-					frappe.show_alert({
-						message: __("No withholding account found in this invoice's tax table."),
-						indicator: "orange",
-					});
-					return;
-				}
-
-				frappe.msgprint({
-					title: __("Withholding Receipt Failed"),
-					message:
-						`<div>${__("Invoice")}: <b>${frappe.utils.escape_html(frm.doc.name)}</b></div>` +
-						`<div style="margin-top:8px;white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px;font-size:12px;color:#7f1d1d;">${frappe.utils.escape_html(
-							res.message || __("Request failed — see Error Log for details.")
-						)}</div>`,
-					indicator: "red",
-				});
-			},
-			error: function (r) {
-				let msg = "";
-				try {
-					if (r && r._server_messages) {
-						msg = JSON.parse(r._server_messages)
-							.map((m) => JSON.parse(m).message || "")
-							.join(" ");
-					}
-				} catch (e) {
-					msg = "";
-				}
-				if (!msg && r && r.exc) {
-					msg = r.exc.split("\n").filter(Boolean).slice(-1)[0] || "";
-				}
-				frappe.msgprint({
-					title: __("Withholding Receipt Failed"),
-					message: frappe.utils.escape_html(
-						msg || __("Request failed — see the browser console and Error Log for details.")
-					),
-					indicator: "red",
-				});
-			},
-		});
-	},
-
 	verify: function (frm) {
 		frappe.call({
 			method: "ethiotel_pos.ethio_telecom_pos_app.page.ethiotel_pos.ethiotel_pos.verify_sales_invoice",
@@ -529,9 +465,8 @@ frappe.ui.form.on("Sales Invoice", {
 		const can_receipt = d.eims_status === "Registered";
 		const footer = `
 			<div class="etv2-si-actions">
-				${can_receipt ? `<button type="button" class="btn btn-primary btn-sm etv2-si-fx-receipt">${__("Get Receipt")}</button>` : ""}
-				${can_receipt ? `<button type="button" class="btn btn-default btn-sm etv2-si-fx-wht-receipt">${__("Get Withholding Receipt")}</button>` : ""}
-				${can_receipt ? `<button type="button" class="btn btn-default btn-sm etv2-si-fx-verify">${__("Verify with MoR")}</button>` : ""}
+${can_receipt ? `<button type="button" class="btn btn-primary btn-sm etv2-si-fx-receipt">${__("Get Receipt")}</button>` : ""}
+${can_receipt ? `<button type="button" class="btn btn-default btn-sm etv2-si-fx-verify">${__("Verify with MoR")}</button>` : ""}
 				<button type="button" class="btn btn-default btn-sm etv2-si-fx-open">${__("Open Document")}</button>
 			</div>`;
 
@@ -591,10 +526,6 @@ frappe.ui.form.on("Sales Invoice", {
 		dd.$body.find(".etv2-si-fx-receipt").on("click", () => {
 			dd.hide();
 			frm.events.get_receipt(frm);
-		});
-		dd.$body.find(".etv2-si-fx-wht-receipt").on("click", () => {
-			dd.hide();
-			frm.events.get_withholding_receipt(frm);
 		});
 		dd.$body.find(".etv2-si-fx-verify").on("click", () => {
 			dd.hide();

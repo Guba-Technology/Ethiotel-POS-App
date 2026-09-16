@@ -1,0 +1,232 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{manual_invoice_number}",
+ "creation": "2026-09-02 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "status",
+  "manual_invoice_number",
+  "invoice_date",
+  "company",
+  "column_break_main",
+  "source_system_type",
+  "currency",
+  "registered_at",
+  "section_break_buyer",
+  "buyer_name",
+  "buyer_tin",
+  "buyer_id_type",
+  "column_break_buyer",
+  "buyer_id_number",
+  "buyer_phone",
+  "buyer_email",
+  "section_break_items",
+  "items",
+  "section_break_totals",
+  "pre_tax_total",
+  "tax_total",
+  "grand_total",
+  "section_break_registration",
+  "custom_document_number",
+  "custom_irn",
+  "custom_qr_code_url",
+  "error_log"
+ ],
+ "fields": [
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Not Submitted\nFailed\nRegistered",
+   "read_only": 1
+  },
+  {
+   "fieldname": "manual_invoice_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Manual Invoice Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "invoice_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Invoice Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source_system_type",
+   "fieldtype": "Select",
+   "label": "Source System Type",
+   "options": "MAN\nPOS\nCRM\nEFD\nSYS"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "default": "ETB",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "registered_at",
+   "fieldtype": "Datetime",
+   "label": "Registered At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_buyer",
+   "fieldtype": "Section Break",
+   "label": "Buyer (Optional for Cash Sales)"
+  },
+  {
+   "fieldname": "buyer_name",
+   "fieldtype": "Data",
+   "label": "Buyer Name"
+  },
+  {
+   "fieldname": "buyer_tin",
+   "fieldtype": "Data",
+   "label": "Buyer TIN"
+  },
+  {
+   "fieldname": "buyer_id_type",
+   "fieldtype": "Select",
+   "label": "Buyer ID Type",
+   "options": "\nNID\nKID\nSID\nWID\nPST\nDLS\nMRS"
+  },
+  {
+   "fieldname": "column_break_buyer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "buyer_id_number",
+   "fieldtype": "Data",
+   "label": "Buyer ID Number"
+  },
+  {
+   "fieldname": "buyer_phone",
+   "fieldtype": "Data",
+   "label": "Buyer Phone"
+  },
+  {
+   "fieldname": "buyer_email",
+   "fieldtype": "Data",
+   "label": "Buyer Email"
+  },
+  {
+   "fieldname": "section_break_items",
+   "fieldtype": "Section Break",
+   "label": "Items"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "EIMS Manual Invoice Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_totals",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "pre_tax_total",
+   "fieldtype": "Currency",
+   "label": "Pre-Tax Total",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tax_total",
+   "fieldtype": "Currency",
+   "label": "Tax Total",
+   "read_only": 1
+  },
+  {
+   "fieldname": "grand_total",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Grand Total",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_registration",
+   "fieldtype": "Section Break",
+   "label": "Registration"
+  },
+  {
+   "fieldname": "custom_document_number",
+   "fieldtype": "Int",
+   "label": "Document Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "custom_irn",
+   "fieldtype": "Data",
+   "label": "IRN",
+   "read_only": 1
+  },
+  {
+   "fieldname": "custom_qr_code_url",
+   "fieldtype": "Data",
+   "label": "QR Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "error_log",
+   "fieldtype": "Small Text",
+   "label": "Error Log",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-02 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ethio Telecom POS App",
+ "name": "EIMS Manual Invoice",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -24,6 +24,9 @@ def validate(doc, method):
     calc_delivery_charges(doc)
     apply_tax_inclusive(doc)
 
+    from ethiotel_pos.eims.payload import validate_invoice_for_eims
+    validate_invoice_for_eims(doc)
+
 
 def before_submit(doc, method):
     add_loyalty_point(doc)

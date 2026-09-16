@@ -1,11 +1,16 @@
 import base64
 import json
+import re
 import time
 
 import requests
 
+from frappe.utils import get_datetime, now_datetime
+
+from .audit import log_audit
 from .constants import EIMS_MIN_BULK_SIZE
 from .logging_setup import eims_logger
+from ethiotel_pos.notify import _enqueue, send_registered_receipt
 
 import frappe
 
@@ -22,8 +27,47 @@ class EIMSConnectorSubmit:
             return "POS Invoice"
         frappe.throw(f"Invoice {invoice_name} not found (neither Sales Invoice nor POS Invoice).")
 
+    @staticmethod
+    def _ensure_service_active():
+        """Refuse new EIRMS registrations once the taxpayer service has been
+        terminated (Directive Art 8 service termination). Existing registered
+        invoices and the audit trail remain readable for the retention window."""
+        if frappe.db.get_single_value("EIMS Setting", "service_terminated"):
+            frappe.throw(
+                "EIMS registration is disabled for this taxpayer: the service has been "
+                "terminated. Export your data from EIMS Setting > Data Management first.",
+                frappe.PermissionError,
+            )
+
+    def _resolve_note_override(self, doc):
+        """
+        Decide the MoR document Type ('INV', 'CRE' or 'DEB') and the
+        """
+        if getattr(doc, "is_debit_note", 0):
+            note_type = "DEB"
+        elif getattr(doc, "is_return", 0):
+            note_type = "CRE"
+        else:
+            note_type = "INV"
+
+        if note_type not in ("CRE", "DEB"):
+            return note_type, None
+
+        original_name = doc.get("return_against") or None
+        ref_irn = self._lookup_irn_for_invoice(original_name) if original_name else None
+        if not ref_irn:
+            frappe.throw(
+                f"Validation Error on Invoice ({doc.name}):<br><br>"
+                f"<b>{note_type}</b> notes must reference an EIRMS-registered original invoice. "
+                f"Set <b>Return Against</b> to an invoice whose <b>custom_irn</b> is already "
+                f"populated, then try again.",
+                title="EIMS Schema Error: Missing Original Invoice IRN",
+            )
+        return note_type, ref_irn
+
     def submit_single_invoice(self, invoice_name):
         try:
+            self._ensure_service_active()
             doctype = self._resolve_invoice_doctype(invoice_name)
             doc = frappe.get_doc(doctype, invoice_name)
 
@@ -39,14 +83,19 @@ class EIMSConnectorSubmit:
             token = self.get_valid_token()
             default_client = self.get_default_client_data()
 
+            note_type, note_ref_irn = self._resolve_note_override(doc)
+
             clean_url = self.settings.base_url.strip().rstrip('/')
             register_url = f"{clean_url}/v1/register"
-            is_https = register_url.lower().startswith("https://")
-
             attempts = 0
             while True:
                 attempts += 1
-                invoice_payload = self.build_invoice_payload(doc, override_doc_num=doc_num)
+                invoice_payload = self.build_invoice_payload(
+                    doc,
+                    override_doc_num=doc_num,
+                    override_note_type=note_type,
+                    override_note_ref_irn=note_ref_irn,
+                )
 
                 auth_headers = {
                     "Content-Type": "application/json",
@@ -55,10 +104,7 @@ class EIMSConnectorSubmit:
                 }
 
                 json_string_payload = json.dumps(invoice_payload, separators=(",", ":"))
-                if is_https:
-                    request_body = self._build_signed_envelope(json_string_payload, default_client)
-                else:
-                    request_body = json_string_payload
+                request_body = self._build_signed_envelope(json_string_payload, default_client)
 
                 response = self._post_with_retry(
                     register_url,
@@ -90,9 +136,7 @@ class EIMSConnectorSubmit:
                         "custom_qr_code_url": qr_code_url,
                         "custom_eims_status": "Registered",
                         "custom_document_number": doc_num,
-                        # Exact totals MoR registered for this invoice — the
-                        # receipt must quote these verbatim or MoR rejects
-                        # it with "Invoice total amount mismatch".
+                       
                         "custom_mor_total_value": invoice_payload["ValueDetails"]["TotalValue"],
                     }), update_modified=True)
 
@@ -101,13 +145,22 @@ class EIMSConnectorSubmit:
                         self._commit_document_number(doc_num)
 
                     frappe.db.commit()
+                    log_audit(
+                        "Invoice Registration",
+                        invoice_type=doctype,
+                        invoice=invoice_name,
+                        eims_status="Registered",
+                        document_number=doc_num,
+                        success=True,
+                        description="Invoice registered with EIRMS",
+                        request_brief=(request_body if isinstance(request_body, str) else json.dumps(request_body, separators=(",", ":")))[:2000],
+                        response_brief=response.text[:2000],
+                    )
+                    _enqueue(send_registered_receipt, invoice_name=invoice_name, doctype=doctype)
                     return {"status": "Transmitted", "message": f"Successfully registered. IRN: {irn}"}
 
-                # MoR enforces strict sequential document numbers and tells us
-                # exactly which number it expects next. Adopt that number and
-                # retry once so a drifted local counter self-heals instead of
-                # burning numbers with "not in correct sequence" / "document
-                # number must be unique" rejections.
+                # use the expected nuber from MoR when the first fails and retry the next.
+                # self-healing code to recover from a lost response
                 expected_num = self._parse_expected_doc_num(response.text)
                 if expected_num is not None and expected_num != doc_num and attempts < 2:
                     self._commit_document_number(expected_num - 1)
@@ -119,9 +172,7 @@ class EIMSConnectorSubmit:
                     frappe.db.commit()
                     continue
 
-                # MoR rejected the very number we were told to use. If that
-                # number was already registered for THIS invoice (a resend
-                # after a lost response), treat it as an idempotent success.
+                # idempotent resend.
                 if expected_num is not None and expected_num == doc_num and is_resend:
                     irn = self._lookup_irn_for_doc_num(doc_num)
                     if irn:
@@ -133,6 +184,15 @@ class EIMSConnectorSubmit:
                         if doc_num > int(self.settings.last_document_number or 0):
                             self._commit_document_number(doc_num)
                         frappe.db.commit()
+                        log_audit(
+                            "Invoice Registration",
+                            invoice_type=doctype,
+                            invoice=invoice_name,
+                            eims_status="Registered",
+                            document_number=doc_num,
+                            success=True,
+                            description="Already registered with EIRMS (idempotent resend)",
+                        )
                         return {"status": "Transmitted", "message": f"Already registered. IRN: {irn}"}
 
                 frappe.db.set_value(doctype, invoice_name, "custom_eims_status", "Failed", update_modified=True)
@@ -140,13 +200,264 @@ class EIMSConnectorSubmit:
 
                 error_msg = f"Error {response.status_code}: {response.text}"
                 frappe.log_error(message=error_msg, title=f"EIMS submission rejected: {invoice_name}")
+                log_audit(
+                    "Invoice Registration",
+                    invoice_type=doctype,
+                    invoice=invoice_name,
+                    eims_status="Failed",
+                    document_number=doc_num,
+                    success=False,
+                    description="EIRMS rejected the submission",
+                    response_brief=response.text[:2000],
+                )
                 return {"status": "Rule Error", "message": error_msg}
 
         except frappe.ValidationError:
             raise
         except Exception as e:
             frappe.log_error(message=frappe.get_traceback(), title=f"EIMS System Crash: {invoice_name}")
+            log_audit(
+                "Invoice Registration",
+                invoice_type=doctype,
+                invoice=invoice_name,
+                eims_status="Failed",
+                success=False,
+                description=f"EIMS system crash during submission: {self._friendly_network_error(e)}",
+            )
             return {"status": "Rule Error", "message": self._friendly_network_error(e)}
+
+    @staticmethod
+    def _put_if_present(target_dict, key, value):
+        if value is not None and str(value).strip() != "":
+            target_dict[key] = value
+
+    def build_manual_invoice_payload(self, doc, override_doc_num):
+        """Build an EIRMS /v1/register payload for an EIRMS Manual Invoice
+        (invoices issued during an EIRMS outage, registered within the 72-hour
+        window). Uses SourceSystemType MAN and the same schema as point-of-sale
+        invoices, per the confirmed MoR register spec."""
+        company = frappe.get_doc("Company", doc.company)
+        company_link = f"/app/company/{company.name}"
+        default_client = self.get_default_client_data()
+
+        tin = re.sub(r"\D", "", doc.buyer_tin or "")
+        transaction_type = "B2B" if tin else "B2C"
+
+        seller = {
+            "Tin": self.settings.seller_tin,
+            "LegalName": company.custom_seller_legal_name or company.company_name,
+            "Email": self._require(company.email, "Email", company.name, company_link),
+            "Phone": self._require(company.phone_no, "Phone", company.name, company_link),
+            "Region": self._require(company.custom_seller_region_code, "Seller Region Code", company.name, company_link),
+            "Wereda": self._require(company.custom_seller_woreda_code, "Seller Wereda Code", company.name, company_link),
+            "City": self._require(company.custom_city, "City", company.name, company_link),
+        }
+        self._put_if_present(seller, "VatNumber", company.custom_vat_number)
+        self._put_if_present(seller, "HouseNumber", company.custom_house_number)
+        self._put_if_present(seller, "TradeName", company.custom_trade_name)
+        self._put_if_present(seller, "SubTin", company.custom_sub_tin)
+        self._put_if_present(seller, "Country", company.custom_country)
+        self._put_if_present(seller, "Zone", company.custom_zone)
+        self._put_if_present(seller, "SubCity", company.custom_sub_city)
+        self._put_if_present(seller, "Kebele", company.custom_kebele)
+        self._put_if_present(seller, "Locality", company.custom_locality)
+
+        item_list = []
+        for idx, row in enumerate(doc.items, start=1):
+            qty = float(row.quantity or 1)
+            unit_price = float(row.unit_price or 0)
+            discount = float(row.discount_amount or 0)
+            pre_tax = round(qty * unit_price - discount, 2)
+            if pre_tax < 0:
+                frappe.throw(
+                    f"Manual invoice line '{row.item_description}': pre-tax value cannot be negative."
+                )
+            tax_rate = float(row.tax_rate or 0)
+            tax_amount = round(pre_tax * tax_rate / 100.0, 2)
+            line_item = {
+                "LineNumber": idx,
+                "ItemCode": row.item_description or str(idx),
+                "ProductDescription": row.item_description or "string",
+                "NatureOfSupplies": "goods",
+                "Quantity": qty,
+                "UnitPrice": round(unit_price, 6),
+                "PreTaxValue": pre_tax,
+                "TaxCode": (row.tax_code or "VAT15").strip(),
+                "TaxAmount": tax_amount,
+                "Unit": "PCS",
+                "TotalLineAmount": round(pre_tax + tax_amount, 2),
+                "ExciseTaxValue": 0.0,
+            }
+            if discount:
+                line_item["Discount"] = round(discount, 2)
+            item_list.append(line_item)
+
+        if not item_list:
+            frappe.throw("Manual invoice must contain at least one item line.")
+
+        payload = {
+            "Version": "1",
+            "TransactionType": transaction_type,
+            "DocumentDetails": {
+                "DocumentNumber": str(override_doc_num),
+                "Date": doc.invoice_date.strftime("%d-%m-%YT00:00:00"),
+                "Type": "INV",
+            },
+            "SellerDetails": seller,
+            "SourceSystem": {
+                "SystemType": (doc.source_system_type or "MAN").strip(),
+                "SystemNumber": default_client.system_number,
+                "InvoiceCounter": override_doc_num,
+            },
+            "PaymentDetails": {
+                "Mode": "CASH",
+                "PaymentTerm": "IMMEDIATE",
+            },
+            "ValueDetails": {
+                "InvoiceCurrency": doc.currency or "ETB",
+                "TaxValue": round(sum(i["TaxAmount"] for i in item_list), 2),
+                "TotalValue": round(sum(i["TotalLineAmount"] for i in item_list), 2),
+            },
+            "ReferenceDetails": {},
+            "ItemList": item_list,
+        }
+
+        buyer = {}
+        if transaction_type == "B2B":
+            buyer["Tin"] = tin
+        self._put_if_present(buyer, "LegalName", doc.buyer_name)
+        self._put_if_present(buyer, "Email", doc.buyer_email)
+        self._put_if_present(buyer, "Phone", doc.buyer_phone)
+        self._put_if_present(buyer, "IdType", doc.buyer_id_type, )
+        self._put_if_present(buyer, "IdNumber", doc.buyer_id_number)
+        if buyer:
+            payload["BuyerDetails"] = buyer
+
+        return payload
+
+    def submit_manual_invoice(self, manual_invoice_name):
+        """Register an EIMS Manual Invoice (72-hour outage backfill) with MoR."""
+        doc = frappe.get_doc("EIMS Manual Invoice", manual_invoice_name)
+        if doc.status == "Registered":
+            return {"status": "Registered", "message": f"Already registered. IRN: {doc.custom_irn}"}
+
+        try:
+            self._ensure_service_active()
+
+            existing_num = doc.custom_document_number
+            if existing_num:
+                doc_num = int(existing_num)
+                is_resend = True
+            else:
+                doc_num = self._peek_next_document_number()
+                is_resend = False
+
+            token = self.get_valid_token()
+            default_client = self.get_default_client_data()
+
+            clean_url = self.settings.base_url.strip().rstrip('/')
+            register_url = f"{clean_url}/v1/register"
+
+            response = None
+            while True:
+                invoice_payload = self.build_manual_invoice_payload(doc, override_doc_num=doc_num)
+                auth_headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {token}",
+                    "apikey": self.settings.get_password("api_key"),
+                }
+                json_string_payload = json.dumps(invoice_payload, separators=(",", ":"))
+                request_body = self._build_signed_envelope(json_string_payload, default_client)
+
+                response = self._post_with_retry(register_url, request_body, auth_headers, timeout=15)
+                if response.status_code == 401:
+                    token = self.get_valid_token(force_refresh=True)
+                    auth_headers["Authorization"] = f"Bearer {token}"
+                    response = self._post_with_retry(register_url, request_body, auth_headers, timeout=15)
+
+                if response.status_code in (200, 201):
+                    res_json = response.json()
+                    body_data = res_json.get("body", {})
+                    irn = body_data.get("irn")
+                    qr_code_url = self._save_qr_file(
+                        manual_invoice_name, body_data.get("signedQR"), "EIMS Manual Invoice"
+                    )
+                    frappe.db.set_value("EIMS Manual Invoice", manual_invoice_name, {
+                        "status": "Registered",
+                        "custom_irn": irn,
+                        "custom_qr_code_url": qr_code_url,
+                        "custom_document_number": doc_num,
+                        "registered_at": now_datetime(),
+                        "error_log": "",
+                    }, update_modified=True)
+                    if doc_num > int(self.settings.last_document_number or 0):
+                        self._commit_document_number(doc_num)
+                    frappe.db.commit()
+                    log_audit(
+                        "Manual Invoice Registration",
+                        invoice_type="EIMS Manual Invoice",
+                        invoice=manual_invoice_name,
+                        eims_status="Registered",
+                        document_number=doc_num,
+                        success=True,
+                        description="Outage/manual invoice registered with EIRMS",
+                        request_brief=(request_body if isinstance(request_body, str) else json.dumps(request_body, separators=(",", ":")))[:2000],
+                        response_brief=response.text[:2000],
+                    )
+                    return {"status": "Registered", "message": f"Manual invoice registered. IRN: {irn}"}
+
+                expected_num = self._parse_expected_doc_num(response.text)
+                if expected_num is not None and expected_num != doc_num:
+                    self._commit_document_number(expected_num - 1)
+                    doc_num = expected_num
+                    frappe.db.set_value(
+                        "EIMS Manual Invoice", manual_invoice_name,
+                        "custom_document_number", doc_num, update_modified=True,
+                    )
+                    frappe.db.commit()
+                    continue
+
+                if expected_num is not None and expected_num == doc_num and is_resend and doc.custom_irn:
+                    frappe.db.set_value("EIMS Manual Invoice", manual_invoice_name, {
+                        "status": "Registered",
+                        "error_log": "",
+                    }, update_modified=True)
+                    frappe.db.commit()
+                    return {"status": "Registered", "message": f"Already registered. IRN: {doc.custom_irn}"}
+                break
+
+            error_msg = f"Error {response.status_code}: {response.text}" if response else "No response"
+            frappe.db.set_value("EIMS Manual Invoice", manual_invoice_name, {
+                "status": "Failed",
+                "error_log": response.text[:2000] if response else error_msg,
+            }, update_modified=True)
+            frappe.db.commit()
+            frappe.log_error(message=error_msg, title=f"EIMS manual submission rejected: {manual_invoice_name}")
+            log_audit(
+                "Manual Invoice Registration",
+                invoice_type="EIMS Manual Invoice",
+                invoice=manual_invoice_name,
+                eims_status="Failed",
+                document_number=doc_num,
+                success=False,
+                description="EIRMS rejected the manual invoice submission",
+                response_brief=response.text[:2000] if response else error_msg,
+            )
+            return {"status": "Failed", "message": error_msg}
+
+        except frappe.ValidationError:
+            raise
+        except Exception as e:
+            frappe.log_error(message=frappe.get_traceback(), title=f"EIMS Manual Submission Crash: {manual_invoice_name}")
+            log_audit(
+                "Manual Invoice Registration",
+                invoice_type="EIMS Manual Invoice",
+                invoice=manual_invoice_name,
+                eims_status="Failed",
+                success=False,
+                description=f"EIMS system crash during manual submission: {self._friendly_network_error(e)}",
+            )
+            return {"status": "Failed", "message": self._friendly_network_error(e)}
 
     @staticmethod
     def _filter_known_fields(doctype, updates):
@@ -207,13 +518,9 @@ class EIMSConnectorSubmit:
         )
         clean_url = self.settings.base_url.strip().rstrip('/')
         register_url = f"{clean_url}/v1/register"
-        is_https = register_url.lower().startswith("https://")
 
         json_string_payload = json.dumps(payload, separators=(",", ":"))
-        if is_https:
-            request_body = self._build_signed_envelope(json_string_payload, default_client)
-        else:
-            request_body = json_string_payload
+        request_body = self._build_signed_envelope(json_string_payload, default_client)
 
         auth_headers = {
             "Content-Type": "application/json",
@@ -242,19 +549,19 @@ class EIMSConnectorSubmit:
         clean_url = (self.settings.base_url or "").strip().rstrip("/")
         if isinstance(e, requests.exceptions.ConnectTimeout):
             return (
-                f"Could not reach the EIRMS server at <b>{clean_url}</b> — the connection timed out. "
+                f"Could not reach the EIRMS server at {clean_url} — the connection timed out. "
                 f"Check that the Base URL in <b>EIMS Setting</b> is correct and that the EIRMS "
                 f"server is reachable from this machine."
             )
         if isinstance(e, requests.exceptions.ConnectionError):
             return (
-                f"Could not connect to the EIRMS server at <b>{clean_url}</b>. "
+                f"Could not connect to the EIRMS server at {clean_url}. "
                 f"Check that the Base URL in <b>EIMS Setting</b> is correct, the server is running, "
                 f"and that this machine can reach it."
             )
         if isinstance(e, requests.exceptions.Timeout):
             return (
-                f"The EIRMS server at <b>{clean_url}</b> did not respond in time. "
+                f"The EIRMS server at {clean_url} did not respond in time. "
                 f"Check your network connection and the Base URL in <b>EIMS Setting</b>."
             )
         return str(e)
@@ -278,6 +585,13 @@ class EIMSConnectorSubmit:
                 "results": results_map
             }
 
+        try:
+            self._ensure_service_active()
+        except frappe.PermissionError as e:
+            for name in invoice_names:
+                results_map[name] = {"status": "Rule Error", "message": str(e)}
+            return {"status": "Failed", "message": str(e), "results": results_map}
+
         default_client = self.get_default_client_data()
 
         docs = []
@@ -298,9 +612,8 @@ class EIMSConnectorSubmit:
 
         clean_url = self.settings.base_url.strip().rstrip('/')
         register_url = f"{clean_url}/v1/bulkRegister"
-        is_https = register_url.lower().startswith("https://")
 
-        eims_logger.debug("register_url=%s is_https=%s", register_url, is_https)
+        eims_logger.debug("register_url=%s", register_url)
 
         while pending:
 
@@ -395,11 +708,8 @@ class EIMSConnectorSubmit:
                     "apikey": self.settings.get_password("api_key"),
                 }
 
-                if is_https:
-                    json_string_payload = json.dumps(batch_payloads, separators=(",", ":"))
-                    request_body = self._build_signed_envelope(json_string_payload, default_client)
-                else:
-                    request_body = json.dumps(batch_payloads, separators=(",", ":"))
+                json_string_payload = json.dumps(batch_payloads, separators=(",", ":"))
+                request_body = self._build_signed_envelope(json_string_payload, default_client)
 
                 response = self._post_with_retry(register_url, request_body, auth_headers, 30)
 
@@ -552,6 +862,13 @@ class EIMSConnectorSubmit:
             f"Total processed: {len(invoice_names)} | Success: {successes} | "
             f"Pending (awaiting callback): {pending_count} | Failures: {failures}\n\n"
             f"Execution Logs:\n" + "\n".join(logs)
+        )
+
+        log_audit(
+            "Bulk Registration",
+            eims_status=overall_status,
+            success=failures == 0 and pending_count == 0,
+            description=f"Bulk EIRMS submission: {len(invoice_names)} invoices. {successes} ok, {pending_count} pending, {failures} failed.",
         )
 
         return {

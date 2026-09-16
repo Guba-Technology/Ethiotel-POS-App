@@ -22,7 +22,6 @@ fixtures = [
                 "name",
                 "in",
                 (
-                    "Sales Invoice-posa_pos_opening_shift",
                     "POS Invoice-posa_pos_opening_shift",
                     "POS Profile-posa_pos_awesome_settings",
                     "POS Profile-posa_section_pricing_controls",
@@ -214,6 +213,7 @@ fixtures = [
                     "Customer-custom_eims_trade_name",
                     "Customer-custom_eims_subcity",
                     "Customer-custom_eims_locality",
+                    "Sales Invoice-custom_transaction_type",
                 ),
             ]
         ],
@@ -226,7 +226,6 @@ fixtures = [
                 "name",
                 "in",
                 (
-                    "Sales Invoice-posa_pos_opening_shift-no_copy",
                     "POS Invoice-posa_pos_opening_shift-no_copy",
                     "Sales Invoice Reference-sales_invoice-reqd",
                     "Sales Invoice-update_outstanding_for_self-default",
@@ -262,16 +261,16 @@ doc_events = {
         "validate": "ethiotel_pos.api.customer.validate",
         "after_insert": "ethiotel_pos.api.customer.after_insert",
     },
-    "Bin": {
-        "after_insert": [
-            "ethiotel_pos.ethiotel_pos.stock_realtime.publish_bin_stock_change",
-            "ethiotel_pos.api.item_fetchers.clear_stock_caches",
-        ],
-        "on_update": [
-            "ethiotel_pos.ethiotel_pos.stock_realtime.publish_bin_stock_change",
-            "ethiotel_pos.api.item_fetchers.clear_stock_caches",
-        ],
-    },
+    # "Bin": {
+    #     "after_insert": [
+    #         "ethiotel_pos.ethiotel_pos.stock_realtime.publish_bin_stock_change",
+    #         "ethiotel_pos.api.item_fetchers.clear_stock_caches",
+    #     ],
+    #     "on_update": [
+    #         "ethiotel_pos.ethiotel_pos.stock_realtime.publish_bin_stock_change",
+    #         "ethiotel_pos.api.item_fetchers.clear_stock_caches",
+    #     ],
+    # },
     "Stock Ledger Entry": {
         "after_insert": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
         "on_cancel": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
@@ -314,6 +313,7 @@ override_doctype_class = {
 }
 doctype_js = {
     "Sales Invoice": "public/js/sales_invoice.js",
+    "Purchase Invoice": "public/js/purchase_invoice.js",
 }
 # include js, css files in header of web template
 # web_include_css = "/assets/ethiotel_pos/css/ethiotel_pos.css"
@@ -443,23 +443,14 @@ jinja = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"ethiotel_pos.tasks.all"
-# 	],
-# 	"daily": [
-# 		"ethiotel_pos.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"ethiotel_pos.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"ethiotel_pos.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"ethiotel_pos.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"hourly": [
+		"ethiotel_pos.tasks.retry_failed_eims_submissions",
+	],
+	"daily": [
+		"ethiotel_pos.tasks.report_device_locations",
+	],
+}
 
 # Testing
 # -------

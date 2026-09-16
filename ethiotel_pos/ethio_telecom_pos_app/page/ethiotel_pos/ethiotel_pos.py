@@ -212,22 +212,6 @@ def register_sales_invoice(sales_invoice):
 		res_status = str(res.get("status", "")).lower() if isinstance(res, dict) else ""
 		ok = res_status in ("transmitted", "success")
 
-		wht_receipt = None
-		if ok:
-			# Automate withholding receipts: if the invoice's Taxes table
-			# contains withholding accounts (TWTH/IWTH), create the matching
-			# EIMS withholding-receipt document(s) right after registration,
-			# mirroring the sales-receipt flow (payment details from the
-			# Payment Entry). They are created but NOT auto-submitted.
-			try:
-				from ethiotel_pos.ethio_telecom_pos_app.doctype.withholding_receipt.withholding_receipt import (
-					create_withholding_receipt,
-				)
-				wht_receipt = create_withholding_receipt(sales_invoice)
-			except Exception as we:
-				frappe.log_error(frappe.get_traceback(), "Auto withholding-receipt creation error")
-				wht_receipt = {"status": "error", "message": str(we)}
-
 		return {
 			"status": "ok" if ok else "error",
 			"result": res,
@@ -236,7 +220,6 @@ def register_sales_invoice(sales_invoice):
 			"eims_status": si.custom_eims_status or res.get("status"),
 			"document_number": si.custom_document_number,
 			"qr_code_url": si.get("custom_qr_code_url"),
-			"withholding_receipt": wht_receipt,
 		}
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "V2 MoR Sales Invoice registration error")
@@ -252,14 +235,20 @@ def verify_sales_invoice(sales_invoice, irn=None):
 		if not irn:
 			return {"status": "error", "message": _("Invoice has no IRN — register it with MoR first.")}
 
-		doc = frappe.get_doc(
-			{
-				"doctype": "EIMS Invoice Verification",
-				"select_registered_invoices": sales_invoice,
-				"irn": irn.strip(),
-			}
-		)
-		doc.insert(ignore_permissions=True)
+		irn = irn.strip()
+		existing_name = frappe.db.get_value("EIMS Invoice Verification", {"irn": irn}, "name")
+		if existing_name:
+			doc = frappe.get_doc("EIMS Invoice Verification", existing_name)
+		else:
+			doc = frappe.get_doc(
+				{
+					"doctype": "EIMS Invoice Verification",
+					"select_registered_invoices": sales_invoice,
+					"irn": irn,
+				}
+			)
+			doc.insert(ignore_permissions=True)
+
 		res = doc.trigger_remote_verification()
 		return {"status": "ok", "result": res, "irn": irn}
 	except Exception as e:
