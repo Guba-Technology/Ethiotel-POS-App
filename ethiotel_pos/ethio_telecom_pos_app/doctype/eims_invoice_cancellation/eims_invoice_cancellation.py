@@ -11,11 +11,6 @@ from ethiotel_pos.eims_connector import EIMSConnector
 from ethiotel_pos.eims.audit import log_audit
 from ethiotel_pos.notify import _enqueue, send_cancellation_notice
 
-
-# MoR cancellation ReasonCode codes (confirmed via EIRMS API docs):
-#   1 = Duplicate, 2 = Data entry mistake, 3 = Order cancelled,
-#   4 = Goods not delivered or returned, 5 = Commercial discount,
-#   6 = Calculation error.
 CANCELLATION_REASON_MAP = {
     "Duplicate": "1",
     "Data entry mistake": "2",
