@@ -1,7 +1,6 @@
 import json
 import re
 
-from hypothesis import settings
 
 from frappe.utils import get_datetime, now_datetime
 
