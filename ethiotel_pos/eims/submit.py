@@ -163,9 +163,30 @@ class EIMSConnectorSubmit:
                     _enqueue(send_registered_receipt, invoice_name=invoice_name, doctype=doctype)
                     return {"status": "Transmitted", "message": f"Successfully registered. IRN: {irn}"}
 
-                # use the expected nuber from MoR when the first fails and retry the next.
+                # use the expected number from MoR when the first fails and retry the next.
                 # self-healing code to recover from a lost response
                 expected_num = self._parse_expected_doc_num(response.text)
+                
+                # ER-GE-1 (Internal Server Error) often indicates document number mismatch
+                # even when MoR doesn't return the "expected : NNN" pattern.
+                # If we get ER-GE-1, try auto-advancing to the next sequence number.
+                is_erge1 = '"1":"Internal Server Error, ER-GE-1"' in (response.text or "")
+                if is_erge1 and attempts < 2:
+                    # Auto-advance: use the next number from our authoritative counter
+                    next_num = self._peek_next_document_number()
+                    if next_num != doc_num:
+                        frappe.logger().info(
+                            f"ER-GE-1 received for doc {doc_num}, auto-advancing to {next_num}"
+                        )
+                        self._commit_document_number(next_num - 1)
+                        doc_num = next_num
+                        frappe.db.set_value(
+                            doctype, invoice_name, "custom_document_number", doc_num,
+                            update_modified=True,
+                        )
+                        frappe.db.commit()
+                        continue
+
                 if expected_num is not None and expected_num != doc_num and attempts < 2:
                     self._commit_document_number(expected_num - 1)
                     doc_num = expected_num
@@ -199,10 +220,14 @@ class EIMSConnectorSubmit:
                         )
                         return {"status": "Transmitted", "message": f"Already registered. IRN: {irn}"}
 
+                # Max 2 attempts reached or non-retryable error - fail with full context
                 frappe.db.set_value(doctype, invoice_name, "custom_eims_status", "Failed", update_modified=True)
                 frappe.db.commit()
 
-                error_msg = f"Error {response.status_code}: {response.text}"
+                error_msg = (
+                    f"Error {response.status_code}: {response.text} "
+                    f"(attempted doc_num={doc_num}, invoice={invoice_name})"
+                )
                 frappe.log_error(message=error_msg, title=f"EIMS submission rejected: {invoice_name}")
                 log_audit(
                     "Invoice Registration",
@@ -415,6 +440,24 @@ class EIMSConnectorSubmit:
                     return {"status": "Registered", "message": f"Manual invoice registered. IRN: {irn}"}
 
                 expected_num = self._parse_expected_doc_num(response.text)
+
+                # ER-GE-1 auto-advance for manual invoices too
+                is_erge1 = '"1":"Internal Server Error, ER-GE-1"' in (response.text or "")
+                if is_erge1:
+                    next_num = self._peek_next_document_number()
+                    if next_num != doc_num:
+                        frappe.logger().info(
+                            f"ER-GE-1 (manual) for doc {doc_num}, auto-advancing to {next_num}"
+                        )
+                        self._commit_document_number(next_num - 1)
+                        doc_num = next_num
+                        frappe.db.set_value(
+                            "EIMS Manual Invoice", manual_invoice_name,
+                            "custom_document_number", doc_num, update_modified=True,
+                        )
+                        frappe.db.commit()
+                        continue
+
                 if expected_num is not None and expected_num != doc_num:
                     self._commit_document_number(expected_num - 1)
                     doc_num = expected_num
@@ -434,7 +477,10 @@ class EIMSConnectorSubmit:
                     return {"status": "Registered", "message": f"Already registered. IRN: {doc.custom_irn}"}
                 break
 
-            error_msg = f"Error {response.status_code}: {response.text}" if response else "No response"
+            error_msg = (
+                f"Error {response.status_code}: {response.text} "
+                f"(attempted doc_num={doc_num}, manual_invoice={manual_invoice_name})"
+            ) if response else "No response"
             frappe.db.set_value("EIMS Manual Invoice", manual_invoice_name, {
                 "status": "Failed",
                 "error_log": response.text[:2000] if response else error_msg,
