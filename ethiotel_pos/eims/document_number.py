@@ -37,18 +37,14 @@ class EIMSConnectorDocNum:
         return None
 
     def _peek_next_document_number(self):
-        """Read-only peek at the next MoR document number: the highest of
-        last_document_number + 1 and every document number ever recorded on
-        a Sales Invoice or POS Invoice, plus one. This guarantees a fresh
-        submission never reuses a number that was already sent to MoR.
-        Does NOT reserve or persist anything. The caller must call
-        _commit_document_number() only after MoR confirms a successful
-        registration for that number."""
+       
         row = frappe.db.sql(
             """SELECT value FROM `tabSingles`
             WHERE doctype = 'EIMS Setting' AND field = 'last_document_number'"""
         )
         last_num = int(row[0][0]) if row and row[0][0] else 0
+        next_from_setting = last_num + 1
+
         max_si = frappe.db.sql(
             """SELECT MAX(custom_document_number) FROM `tabSales Invoice`
                WHERE custom_document_number IS NOT NULL AND custom_document_number > 0"""
@@ -61,22 +57,25 @@ class EIMSConnectorDocNum:
             int(max_si[0][0] or 0) if max_si else 0,
             int(max_pos[0][0] or 0) if max_pos else 0,
         )
-        return max(last_num + 1, max_used + 1)
+
+        # Only use invoice max if it's a reasonable increment over the setting
+        # (prevents a single corrupt entry like 901 from hijacking the sequence).
+        REASONABLE_GAP = 1000
+        if max_used > last_num and (max_used - last_num) <= REASONABLE_GAP:
+            return max(next_from_setting, max_used + 1)
+
+        # Fallback: authoritative setting wins
+        return next_from_setting
 
     def _parse_expected_doc_num(self, response_text):
-        """Extract the MoR-expected next document number from a rule
-        validation error, e.g. 'Document number is not in correct sequence
-        expected : 107'. Returns None when the error carries no number."""
+       
         match = re.search(r"expected\s*:\s*(\d+)", response_text or "", re.IGNORECASE)
         if match:
             return int(match.group(1))
         return None
 
     def _commit_document_number(self, doc_num):
-        """Persist doc_num as the new EIMS Setting.last_document_number.
-        Called only after MoR confirms successful registration for that
-        number, so a failed/rejected/pending submission never burns a
-        document number."""
+    
         doc_num = int(doc_num)
         exists = frappe.db.sql(
             """SELECT 1 FROM `tabSingles`
