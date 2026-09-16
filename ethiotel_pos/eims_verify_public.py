@@ -104,7 +104,12 @@ def _verify_remote(irn):
         "Content-Type": "application/json",
         "Accept": "*/*",
     }
-    request_body = connector._build_signed_envelope(json.dumps({"irn": irn}, separators=(",", ":")), default_client)
+    json_payload = json.dumps({"irn": irn}, separators=(",", ":"))
+    is_https = url.lower().startswith("https://")
+    if is_https:
+        request_body = connector._build_signed_envelope(json_payload, default_client)
+    else:
+        request_body = json_payload
     response = requests.post(url, data=request_body.encode("utf-8"), headers=headers, timeout=15)
     if response.status_code == 200:
         try:

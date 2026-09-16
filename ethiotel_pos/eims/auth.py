@@ -31,15 +31,28 @@ class EIMSConnectorAuth:
         login_url = f"{clean_url}/auth/login"
 
         json_string = json.dumps(payload, separators=(",", ":"))
+        data_bytes = json_string.encode("utf-8")
 
-        envelope_string = self._build_signed_envelope(json_string, default_client)
-        response = requests.post(
-            login_url,
-            data=envelope_string.encode("utf-8"),
-            headers=self.headers,
-            timeout=15,
-            verify=False
-        )
+        is_https = login_url.lower().startswith("https://")
+
+        if is_https:
+            envelope_string = self._build_signed_envelope(json_string, default_client)
+            response = requests.post(
+                login_url,
+                data=envelope_string.encode("utf-8"),
+                headers=self.headers,
+                timeout=15,
+                verify=False
+            )
+            print(f"Request to {login_url} sent with signed envelope. Response status: {response.status_code}")
+        else:
+            response = requests.post(
+                login_url,
+                data=data_bytes,
+                headers=self.headers,
+                timeout=10
+            )
+            print(f"Request to {login_url} sent. Response status: {response.status_code}")
 
         if response.status_code == 200:
             res_data = response.json()

@@ -64,9 +64,12 @@ class EIMSInvoiceCancellation(Document):
                 "Remark": self.remark.strip()
             }, separators=(",", ":"))
 
-            request_body = connector._build_signed_envelope(
-                payload_data, connector.get_default_client_data()
-            )
+            request_body = payload_data
+            is_https = url.lower().startswith("https://")
+            if is_https:
+                request_body = connector._build_signed_envelope(
+                    payload_data, connector.get_default_client_data()
+                )
             self.request_payload = request_body
             response = requests.post(url, data=request_body.encode("utf-8"), headers=headers, timeout=15)
 
@@ -154,9 +157,12 @@ class EIMSInvoiceCancellation(Document):
                 for row in self.invoice_list
             ]
 
-            request_body = connector._build_signed_envelope(
-                json.dumps(bulk_payload, separators=(",", ":")), connector.get_default_client_data()
-            )
+            request_body = json.dumps(bulk_payload, separators=(",", ":"))
+            is_https = url.lower().startswith("https://")
+            if is_https:
+                request_body = connector._build_signed_envelope(
+                    request_body, connector.get_default_client_data()
+                )
             self.request_payload = request_body
             response = requests.post(
                 url, data=request_body.encode("utf-8"), headers=headers, timeout=30

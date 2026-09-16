@@ -162,10 +162,14 @@ class EIMSInvoiceReceipt(Document):
             }, separators=(",", ":"))
 
             self.request_payload = payload_data
-            request_body = connector._build_signed_envelope(
-                payload_data, connector.get_default_client_data()
-            )
-            self.request_payload = request_body
+            is_https = url.lower().startswith("https://")
+            if is_https:
+                request_body = connector._build_signed_envelope(
+                    payload_data, connector.get_default_client_data()
+                )
+                self.request_payload = request_body
+            else:
+                request_body = payload_data
             response = requests.post(url, data=request_body.encode("utf-8"), headers=headers, timeout=15)
             res_data = response.json()
             if response.status_code == 200 and res_data.get("statusCode") == 200:

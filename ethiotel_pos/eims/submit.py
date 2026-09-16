@@ -87,6 +87,7 @@ class EIMSConnectorSubmit:
 
             clean_url = self.settings.base_url.strip().rstrip('/')
             register_url = f"{clean_url}/v1/register"
+            is_https = register_url.lower().startswith("https://")
             attempts = 0
             while True:
                 attempts += 1
@@ -104,7 +105,10 @@ class EIMSConnectorSubmit:
                 }
 
                 json_string_payload = json.dumps(invoice_payload, separators=(",", ":"))
-                request_body = self._build_signed_envelope(json_string_payload, default_client)
+                if is_https:
+                    request_body = self._build_signed_envelope(json_string_payload, default_client)
+                else:
+                    request_body = json_string_payload
 
                 response = self._post_with_retry(
                     register_url,
@@ -357,6 +361,7 @@ class EIMSConnectorSubmit:
 
             clean_url = self.settings.base_url.strip().rstrip('/')
             register_url = f"{clean_url}/v1/register"
+            is_https = register_url.lower().startswith("https://")
 
             response = None
             while True:
@@ -367,7 +372,10 @@ class EIMSConnectorSubmit:
                     "apikey": self.settings.get_password("api_key"),
                 }
                 json_string_payload = json.dumps(invoice_payload, separators=(",", ":"))
-                request_body = self._build_signed_envelope(json_string_payload, default_client)
+                if is_https:
+                    request_body = self._build_signed_envelope(json_string_payload, default_client)
+                else:
+                    request_body = json_string_payload
 
                 response = self._post_with_retry(register_url, request_body, auth_headers, timeout=15)
                 if response.status_code == 401:
@@ -518,9 +526,13 @@ class EIMSConnectorSubmit:
         )
         clean_url = self.settings.base_url.strip().rstrip('/')
         register_url = f"{clean_url}/v1/register"
+        is_https = register_url.lower().startswith("https://")
 
         json_string_payload = json.dumps(payload, separators=(",", ":"))
-        request_body = self._build_signed_envelope(json_string_payload, default_client)
+        if is_https:
+            request_body = self._build_signed_envelope(json_string_payload, default_client)
+        else:
+            request_body = json_string_payload
 
         auth_headers = {
             "Content-Type": "application/json",
@@ -612,6 +624,7 @@ class EIMSConnectorSubmit:
 
         clean_url = self.settings.base_url.strip().rstrip('/')
         register_url = f"{clean_url}/v1/bulkRegister"
+        is_https = register_url.lower().startswith("https://")
 
         eims_logger.debug("register_url=%s", register_url)
 
@@ -709,7 +722,10 @@ class EIMSConnectorSubmit:
                 }
 
                 json_string_payload = json.dumps(batch_payloads, separators=(",", ":"))
-                request_body = self._build_signed_envelope(json_string_payload, default_client)
+                if is_https:
+                    request_body = self._build_signed_envelope(json_string_payload, default_client)
+                else:
+                    request_body = json_string_payload
 
                 response = self._post_with_retry(register_url, request_body, auth_headers, 30)
 
