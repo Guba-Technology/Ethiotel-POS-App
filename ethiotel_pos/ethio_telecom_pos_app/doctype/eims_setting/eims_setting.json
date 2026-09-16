@@ -16,6 +16,7 @@
   "client_data_list",
   "default_taxes_and_charges_template",
   "current_access_token",
+  "token_system_number",
   "token_expiry",
   "section_break_compliance",
   "auto_retry_failed_submissions",
@@ -63,6 +64,13 @@
    "fieldname": "current_access_token",
    "fieldtype": "Small Text",
    "label": "Current Access Token"
+  },
+  {
+   "fieldname": "token_system_number",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Token System Number",
+   "read_only": 1
   },
   {
    "fieldname": "token_expiry",
@@ -205,7 +213,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-14 10:20:15.237195",
+ "modified": "2026-09-16 17:31:46.887391",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "EIMS Setting",

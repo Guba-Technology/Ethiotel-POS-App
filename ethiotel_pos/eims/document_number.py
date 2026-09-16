@@ -36,36 +36,43 @@ class EIMSConnectorDocNum:
                     return irn
         return None
 
+    def _active_client_last_doc(self):
+        """The per-system document counter of the currently default Client Data
+        row. Each System Number has its own MoR sequence; switching the default
+        switches the sequence too. Returns None when the active client has no
+        tracked counter yet - in that case callers should fall back to the
+        synced parent last_document_number."""
+        rows = frappe.db.sql(
+            """SELECT last_document_number FROM `tabClient Data`
+               WHERE parent = %s AND parentfield = 'client_data_list' AND is_default = 1""",
+            self.settings.name,
+        )
+        if rows and rows[0][0]:
+            return int(rows[0][0])
+        return None
+
     def _peek_next_document_number(self):
-       
-        row = frappe.db.sql(
-            """SELECT value FROM `tabSingles`
-            WHERE doctype = 'EIMS Setting' AND field = 'last_document_number'"""
-        )
-        last_num = int(row[0][0]) if row and row[0][0] else 0
-        next_from_setting = last_num + 1
+        """Read-only peek at the next MoR document number.
 
-        max_si = frappe.db.sql(
-            """SELECT MAX(custom_document_number) FROM `tabSales Invoice`
-               WHERE custom_document_number IS NOT NULL AND custom_document_number > 0"""
-        )
-        max_pos = frappe.db.sql(
-            """SELECT MAX(custom_document_number) FROM `tabPOS Invoice`
-               WHERE custom_document_number IS NOT NULL AND custom_document_number > 0"""
-        )
-        max_used = max(
-            int(max_si[0][0] or 0) if max_si else 0,
-            int(max_pos[0][0] or 0) if max_pos else 0,
-        )
+        The active Client Data row's per-system counter (synced to the parent
+        EIMS Setting.last_document_number) is the single source of truth.
+        Invoice document numbers are NOT considered because they cross System
+        Number boundaries: an invoice registered under another System Number
+        must not advance this system's sequence. Sequence drift (e.g. a lost
+        response) is recovered by self-healing via MoR's 'expected : NNN'
+        response.
 
-        # Only use invoice max if it's a reasonable increment over the setting
-        # (prevents a single corrupt entry like 901 from hijacking the sequence).
-        REASONABLE_GAP = 1000
-        if max_used > last_num and (max_used - last_num) <= REASONABLE_GAP:
-            return max(next_from_setting, max_used + 1)
-
-        # Fallback: authoritative setting wins
-        return next_from_setting
+        Does NOT reserve or persist anything. The caller must call
+        _commit_document_number() only after MoR confirms a successful
+        registration for that number."""
+        last_num = self._active_client_last_doc()
+        if last_num is None:
+            row = frappe.db.sql(
+                """SELECT value FROM `tabSingles`
+                WHERE doctype = 'EIMS Setting' AND field = 'last_document_number'"""
+            )
+            last_num = int(row[0][0]) if row and row[0][0] else 0
+        return last_num + 1
 
     def _parse_expected_doc_num(self, response_text):
        
@@ -92,6 +99,18 @@ class EIMSConnectorDocNum:
                 """INSERT INTO `tabSingles` (doctype, field, value)
                 VALUES ('EIMS Setting', 'last_document_number', %s)""",
                 (doc_num,),
+            )
+        # Keep the active System Number's per-system counter in sync so the
+        # number follows the default Client Data row when it is switched later.
+        rows = frappe.db.sql(
+            """SELECT name FROM `tabClient Data`
+               WHERE parent = %s AND parentfield = 'client_data_list' AND is_default = 1""",
+            self.settings.name,
+        )
+        if rows:
+            frappe.db.sql(
+                """UPDATE `tabClient Data` SET last_document_number = %s WHERE name = %s""",
+                (doc_num, rows[0][0]),
             )
         frappe.db.commit()
         self.settings.last_document_number = doc_num

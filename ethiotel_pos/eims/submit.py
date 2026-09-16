@@ -237,6 +237,7 @@ class EIMSConnectorSubmit:
                     document_number=doc_num,
                     success=False,
                     description="EIRMS rejected the submission",
+                    request_brief=(request_body if isinstance(request_body, str) else json.dumps(request_body, separators=(",", ":")))[:2000],
                     response_brief=response.text[:2000],
                 )
                 return {"status": "Rule Error", "message": error_msg}

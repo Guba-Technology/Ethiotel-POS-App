@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2026-06-26 12:24:15.249315",
+ "creation": "2026-08-19 11:52:55.942593",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
@@ -12,7 +12,8 @@
   "system_type",
   "client_secret",
   "private_key",
-  "public_certificate"
+  "public_certificate",
+  "last_document_number"
  ],
  "fields": [
   {
@@ -63,13 +64,19 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Is Default"
+  },
+  {
+   "fieldname": "last_document_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Last Document Number"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-06-26 12:39:32.555576",
+ "modified": "2026-09-16 16:30:08.262463",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "Client Data",
@@ -77,6 +84,7 @@
  "permissions": [],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

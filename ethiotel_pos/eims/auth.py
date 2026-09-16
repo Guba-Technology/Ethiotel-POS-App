@@ -9,12 +9,16 @@ import frappe
 
 class EIMSConnectorAuth:
     def get_valid_token(self, force_refresh=False):
+       
+        default_client = self.get_default_client_data()
+        current_sys = (default_client.system_number or "").strip()
+        cached_sys = (getattr(self.settings, "token_system_number", "") or "").strip()
+
         if (not force_refresh and self.settings.current_access_token
                 and self.settings.token_expiry
-                and get_datetime(self.settings.token_expiry) > now_datetime()):
+                and get_datetime(self.settings.token_expiry) > now_datetime()
+                and cached_sys == current_sys):
             return self.settings.current_access_token
-
-        default_client = self.get_default_client_data()
 
         decrypted_id = default_client.get_password("client_id")
         decrypted_secret = default_client.get_password("client_secret")
@@ -59,6 +63,7 @@ class EIMSConnectorAuth:
             token = res_data.get("data", {}).get("accessToken")
 
             self.settings.current_access_token = token
+            self.settings.token_system_number = current_sys
             self.settings.token_expiry = frappe.utils.add_to_date(now_datetime(), minutes=60)
             self.settings.save(ignore_permissions=True)
             frappe.db.commit()
