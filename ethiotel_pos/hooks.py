@@ -214,6 +214,7 @@ fixtures = [
                     "Customer-custom_eims_subcity",
                     "Customer-custom_eims_locality",
                     "Sales Invoice-custom_transaction_type",
+                    "Sales Invoice-custom_mor_fields"
                 ),
             ]
         ],
