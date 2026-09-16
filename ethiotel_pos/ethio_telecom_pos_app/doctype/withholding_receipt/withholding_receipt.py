@@ -328,6 +328,27 @@ class WithholdingReceipt(Document):
             else ""
         )
 
+        payment_reference_html = ""
+        if self.payment_entry:
+            payment_reference_html = (
+                '<div class="wr-sec">Payment Reference</div>'
+                '<table class="wr-table">'
+                '<tr><td class="wr-k">Payment Entry</td><td class="wr-v">%s</td></tr>'
+                '<tr><td class="wr-k">Paid Amount</td><td class="wr-v">%s %s</td></tr>'
+                '<tr><td class="wr-k">Mode of Payment</td><td class="wr-v">%s</td></tr>'
+                '<tr><td class="wr-k">Payment Date</td><td class="wr-v">%s</td></tr>'
+                '<tr><td class="wr-k">Reference</td><td class="wr-v">%s</td></tr>'
+                '<tr><td class="wr-k">Collector</td><td class="wr-v">%s</td></tr>'
+                '</table>'
+            ) % (
+                self.payment_entry or '',
+                self.currency or '', fmt_amount(self.paid_amount),
+                self.mode_of_payment or '',
+                self.payment_date or '',
+                self.payment_reference or '',
+                self.collector_name or '',
+            )
+
         return f"""
         <style>
             .wr-card {{ width: 380px; max-width: 100%; margin: 0 auto; font-family: Arial, sans-serif;
@@ -396,27 +417,7 @@ class WithholdingReceipt(Document):
                     <tr><td class="wr-k">RRN</td><td class="wr-v">{self.rrn or ''}</td></tr>
                 </table>
 
-                        payment_reference_html = ""
-        if self.payment_entry:
-            payment_reference_html = (
-                '<div class="wr-sec">Payment Reference</div>'
-                '<table class="wr-table">'
-                '<tr><td class="wr-k">Payment Entry</td><td class="wr-v">%s</td></tr>'
-                '<tr><td class="wr-k">Paid Amount</td><td class="wr-v">%s %s</td></tr>'
-                '<tr><td class="wr-k">Mode of Payment</td><td class="wr-v">%s</td></tr>'
-                '<tr><td class="wr-k">Payment Date</td><td class="wr-v">%s</td></tr>'
-                '<tr><td class="wr-k">Reference</td><td class="wr-v">%s</td></tr>'
-                '<tr><td class="wr-k">Collector</td><td class="wr-v">%s</td></tr>'
-                '</table>'
-            ) % (
-                self.payment_entry or '',
-                self.currency or '', fmt_amount(self.paid_amount),
-                self.mode_of_payment or '',
-                self.payment_date or '',
-                self.payment_reference or '',
-                self.collector_name or '',
-            )
-
+                {payment_reference_html}
                 {qr_html}
 
                 <div class="wr-sign">
