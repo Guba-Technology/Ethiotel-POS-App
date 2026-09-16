@@ -6,6 +6,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
+from frappe.utils import get_datetime
 
 from ethiotel_pos.eims_connector import EIMSConnector, resolve_mor_payment_mode
 from ethiotel_pos.eims.payload import sum_withholding
@@ -283,7 +284,6 @@ class WithholdingReceipt(Document):
 
     @frappe.whitelist()
     def compile_receipt_html(self):
-        from frappe.utils import get_datetime
 
         receipt_date = self.receipt_date
         if receipt_date:
@@ -396,24 +396,26 @@ class WithholdingReceipt(Document):
                     <tr><td class="wr-k">RRN</td><td class="wr-v">{self.rrn or ''}</td></tr>
                 </table>
 
-                {"" if not self.payment_entry else """
-                <div class="wr-sec">Payment Reference</div>
-                <table class="wr-table">
-                    <tr><td class="wr-k">Payment Entry</td><td class="wr-v">%s</td></tr>
-                    <tr><td class="wr-k">Paid Amount</td><td class="wr-v">%s %s</td></tr>
-                    <tr><td class="wr-k">Mode of Payment</td><td class="wr-v">%s</td></tr>
-                    <tr><td class="wr-k">Payment Date</td><td class="wr-v">%s</td></tr>
-                    <tr><td class="wr-k">Reference</td><td class="wr-v">%s</td></tr>
-                    <tr><td class="wr-k">Collector</td><td class="wr-v">%s</td></tr>
-                </table>
-                """ % (
-                    self.payment_entry or '',
-                    self.currency or '', fmt_amount(self.paid_amount),
-                    self.mode_of_payment or '',
-                    self.payment_date or '',
-                    self.payment_reference or '',
-                    self.collector_name or '',
-                )}
+                        payment_reference_html = ""
+        if self.payment_entry:
+            payment_reference_html = (
+                '<div class="wr-sec">Payment Reference</div>'
+                '<table class="wr-table">'
+                '<tr><td class="wr-k">Payment Entry</td><td class="wr-v">%s</td></tr>'
+                '<tr><td class="wr-k">Paid Amount</td><td class="wr-v">%s %s</td></tr>'
+                '<tr><td class="wr-k">Mode of Payment</td><td class="wr-v">%s</td></tr>'
+                '<tr><td class="wr-k">Payment Date</td><td class="wr-v">%s</td></tr>'
+                '<tr><td class="wr-k">Reference</td><td class="wr-v">%s</td></tr>'
+                '<tr><td class="wr-k">Collector</td><td class="wr-v">%s</td></tr>'
+                '</table>'
+            ) % (
+                self.payment_entry or '',
+                self.currency or '', fmt_amount(self.paid_amount),
+                self.mode_of_payment or '',
+                self.payment_date or '',
+                self.payment_reference or '',
+                self.collector_name or '',
+            )
 
                 {qr_html}
 
