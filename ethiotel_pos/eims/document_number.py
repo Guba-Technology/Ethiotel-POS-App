@@ -37,11 +37,8 @@ class EIMSConnectorDocNum:
         return None
 
     def _active_client_last_doc(self):
-        """The per-system document counter of the currently default Client Data
-        row. Each System Number has its own MoR sequence; switching the default
-        switches the sequence too. Returns None when the active client has no
-        tracked counter yet - in that case callers should fall back to the
-        synced parent last_document_number."""
+        """Return the last document number stored in the active Client Data row according to the system
+        number selected in the EIMS Setting."""
         rows = frappe.db.sql(
             """SELECT last_document_number FROM `tabClient Data`
                WHERE parent = %s AND parentfield = 'client_data_list' AND is_default = 1""",
@@ -53,18 +50,8 @@ class EIMSConnectorDocNum:
 
     def _peek_next_document_number(self):
         """Read-only peek at the next MoR document number.
-
-        The active Client Data row's per-system counter (synced to the parent
-        EIMS Setting.last_document_number) is the single source of truth.
-        Invoice document numbers are NOT considered because they cross System
-        Number boundaries: an invoice registered under another System Number
-        must not advance this system's sequence. Sequence drift (e.g. a lost
-        response) is recovered by self-healing via MoR's 'expected : NNN'
-        response.
-
-        Does NOT reserve or persist anything. The caller must call
-        _commit_document_number() only after MoR confirms a successful
-        registration for that number."""
+        based on the selected system number.
+        """
         last_num = self._active_client_last_doc()
         if last_num is None:
             row = frappe.db.sql(
@@ -75,14 +62,17 @@ class EIMSConnectorDocNum:
         return last_num + 1
 
     def _parse_expected_doc_num(self, response_text):
-       
+        """if the first request fails due to wrong document nuber, 
+               parse the expected document number from the response text and return it as an integer.
+               If not found, return None."""
         match = re.search(r"expected\s*:\s*(\d+)", response_text or "", re.IGNORECASE)
         if match:
             return int(match.group(1))
         return None
 
     def _commit_document_number(self, doc_num):
-    
+        """adter a successful fetching of document number,
+        update the last document number in the EIMS Setting and the active Client Data row."""
         doc_num = int(doc_num)
         exists = frappe.db.sql(
             """SELECT 1 FROM `tabSingles`
@@ -100,8 +90,6 @@ class EIMSConnectorDocNum:
                 VALUES ('EIMS Setting', 'last_document_number', %s)""",
                 (doc_num,),
             )
-        # Keep the active System Number's per-system counter in sync so the
-        # number follows the default Client Data row when it is switched later.
         rows = frappe.db.sql(
             """SELECT name FROM `tabClient Data`
                WHERE parent = %s AND parentfield = 'client_data_list' AND is_default = 1""",

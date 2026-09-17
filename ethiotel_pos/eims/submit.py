@@ -20,7 +20,9 @@ class EIMSConnectorSubmit:
         """Return the doctype of the invoice: 'Sales Invoice' when the name
         is a Sales Invoice, otherwise 'POS Invoice'. Sales Invoices and POS
         Invoices are separate EIMS registrations that share one document
-        number source (EIMS Setting.last_document_number)."""
+        number source (EIMS Setting.last_document_number). but here withholding related
+        things are don in the sales invoice side. tasactions like b2b, b2g,or g2g are 
+        more likely being done in the salesss invoice side."""
         if frappe.db.exists("Sales Invoice", invoice_name):
             return "Sales Invoice"
         if frappe.db.exists("POS Invoice", invoice_name):
@@ -31,7 +33,8 @@ class EIMSConnectorSubmit:
     def _ensure_service_active():
         """Refuse new EIRMS registrations once the taxpayer service has been
         terminated (Directive Art 8 service termination). Existing registered
-        invoices and the audit trail remain readable for the retention window."""
+        invoices and the audit trail remain readable for the retention window.
+        this was supposed to be for multi tenant system"""
         if frappe.db.get_single_value("EIMS Setting", "service_terminated"):
             frappe.throw(
                 "EIMS registration is disabled for this taxpayer: the service has been "
@@ -41,7 +44,10 @@ class EIMSConnectorSubmit:
 
     def _resolve_note_override(self, doc):
         """
-        Decide the MoR document Type ('INV', 'CRE' or 'DEB') and the
+        Decide the MoR document Type ('INV', 'CRE' or 'DEB')
+        inv is for invoice, cre is for credite note and deb id for debit note in the sales invoice.
+        check (Is Return (Credit Note)) for CRE and
+        check (Is Rate Adjustment Entry (Debit Note)) for DEB in the sales invoice
         """
         if getattr(doc, "is_debit_note", 0):
             note_type = "DEB"
@@ -73,7 +79,7 @@ class EIMSConnectorSubmit:
 
             existing_doc_num = doc.get("custom_document_number")
             if existing_doc_num:
-                # idempotent resend: reuse the number already assigned to this invoice
+                # reuse the number already assigned to this invoice if it exists
                 doc_num = int(existing_doc_num)
                 is_resend = True
             else:
@@ -149,6 +155,7 @@ class EIMSConnectorSubmit:
                         self._commit_document_number(doc_num)
 
                     frappe.db.commit()
+                    # Log the successful registration in the EIMS Audit Trail
                     log_audit(
                         "Invoice Registration",
                         invoice_type=doctype,
@@ -160,6 +167,7 @@ class EIMSConnectorSubmit:
                         request_brief=(request_body if isinstance(request_body, str) else json.dumps(request_body, separators=(",", ":")))[:2000],
                         response_brief=response.text[:2000],
                     )
+                    #notify
                     _enqueue(send_registered_receipt, invoice_name=invoice_name, doctype=doctype)
                     return {"status": "Transmitted", "message": f"Successfully registered. IRN: {irn}"}
 
@@ -167,9 +175,12 @@ class EIMSConnectorSubmit:
                 # self-healing code to recover from a lost response
                 expected_num = self._parse_expected_doc_num(response.text)
                 
-                # ER-GE-1 (Internal Server Error) often indicates document number mismatch
+                # ER-GE-1 (Internal Server Error) -this late errore encountered from MoR system.
+                # I don't really know what it means but the issue was about document number.
+                # It often indicates document number mismatch
                 # even when MoR doesn't return the "expected : NNN" pattern.
                 # If we get ER-GE-1, try auto-advancing to the next sequence number.
+                """commonly it happens whenever you switch between the system number (cliesnt)"""
                 is_erge1 = '"1":"Internal Server Error, ER-GE-1"' in (response.text or "")
                 if is_erge1 and attempts < 2:
                     # Auto-advance: use the next number from our authoritative counter

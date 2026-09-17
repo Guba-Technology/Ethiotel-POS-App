@@ -13,13 +13,9 @@ from erpnext.stock.get_item_details import get_conversion_factor
 _pv = "ethiotel_pos.ethio_telecom_pos_app.page.ethiotel_pos.ethiotel_pos"
 
 
-# ---------------------------------------------------------------------
-# MoR (EIMS) helpers — the EIMS connector lives on Sales Invoice, so a
-# submitted POS Invoice is converted to a Sales Invoice before
-# registration / verification / cancellation.
-# ---------------------------------------------------------------------
 _POS_MOR_FIELDS = (
 	("custom_sales_invoice", "Link", "Sales Invoice"),
+	("custom_buyer_tin", "Data", None),
 	("custom_eims_status", "Select", "\nNot Submitted\nRegistered\nPending\nFailed\nTransmitted\nCancelled"),
 	("custom_mor_irn", "Data", None),
 	("custom_document_number", "Int", None),
@@ -1442,6 +1438,13 @@ def save_held_order(doc):
 	if not doc or doc.get("doctype") != "POS Invoice":
 		frappe.throw("Invalid held order payload")
 
+	# Make sure the MoR tracking fields (incl. custom_buyer_tin) exist on
+	# POS Invoice before inserting the draft.
+	try:
+		_ensure_pos_mor_fields()
+	except Exception:
+		frappe.db.rollback()
+
 	doc["doctype"] = "POS Invoice"
 	doc["is_pos"] = 1
 	doc["docstatus"] = 0
@@ -1808,6 +1811,11 @@ def save_offline_order(order, ref):
 
 	if not order or order.get("doctype") != "POS Invoice":
 		frappe.throw("Invalid offline order: missing POS Invoice details")
+
+	try:
+		_ensure_pos_mor_fields()
+	except Exception:
+		frappe.db.rollback()
 
 	cleaned = {k: v for k, v in order.items() if not str(k).startswith("__")}
 	cleaned["doctype"] = "POS Invoice"

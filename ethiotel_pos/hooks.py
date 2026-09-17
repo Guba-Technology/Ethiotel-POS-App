@@ -448,9 +448,6 @@ scheduler_events = {
 	"hourly": [
 		"ethiotel_pos.tasks.retry_failed_eims_submissions",
 	],
-	"daily": [
-		"ethiotel_pos.tasks.report_device_locations",
-	],
 }
 
 # Testing

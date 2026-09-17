@@ -18,8 +18,6 @@ EIMS_CUSTOM_FIELDS = [
     "custom_qr_code_url",
     "custom_conversation_id",
     "custom_cancelled_at",
-    "custom_gps_lat",
-    "custom_gps_lng",
 ]
 
 INVOICE_CORE_FIELDS = ["name", "posting_date", "grand_total", "company", "customer"]
@@ -97,16 +95,12 @@ def export_taxpayer_data():
         "counts": {
             "sales_pos_invoices_registered": len(invoices),
             "audit_log_rows": frappe.db.count("EIMS Audit Log"),
-            "geo_log_rows": frappe.db.count("EIMS Geo Log"),
             "verification_rows": frappe.db.count("EIMS Invoice Verification"),
-            "mpos_devices": frappe.db.count("mPOS Device"),
         },
         "eims_setting": _sanitize_setting(),
         "invoices": invoices,
         "audit_log_rows": frappe.db.get_all("EIMS Audit Log", order_by="creation"),
-        "geo_log_rows": frappe.db.get_all("EIMS Geo Log", order_by="creation"),
         "verification_rows": frappe.db.get_all("EIMS Invoice Verification", order_by="creation"),
-        "mpos_devices": frappe.db.get_all("mPOS Device", order_by="creation"),
     }
 
     file_name = f"eims_taxpayer_export_{frappe.utils.nowdate()}_{frappe.utils.data.random_string(6)}.json"
@@ -174,16 +168,12 @@ def purge_taxpayer_data(confirm=None):
 
     deleted = {
         "audit_log_rows": frappe.db.count("EIMS Audit Log"),
-        "geo_log_rows": frappe.db.count("EIMS Geo Log"),
         "verification_rows": frappe.db.count("EIMS Invoice Verification"),
-        "mpos_devices": frappe.db.count("mPOS Device"),
         "qr_files": 0,
     }
 
     frappe.db.delete("EIMS Audit Log", {})
-    frappe.db.delete("EIMS Geo Log", {})
     frappe.db.delete("EIMS Invoice Verification", {})
-    frappe.db.delete("mPOS Device", {})
     deleted["qr_files"] = _delete_generated_qr_files()
     deleted["custom_fields_cleared"] = _clear_custom_fields()
     frappe.db.commit()

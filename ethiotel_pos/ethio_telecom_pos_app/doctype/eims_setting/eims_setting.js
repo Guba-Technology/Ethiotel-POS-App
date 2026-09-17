@@ -21,14 +21,12 @@ frappe.ui.form.on('Client Data', {
         let current_row = locals[cdt][cdn];
         
         if (current_row.is_default == 1) {
-            // Uncheck "is_default" for all other rows dynamically
             $.each(frm.doc.client_data_list || [], function(i, row) {
                 if (row.name !== current_row.name && row.is_default == 1) {
                     frappe.model.set_value(row.doctype, row.name, 'is_default', 0);
                 }
             });
             
-            // Set the system number on the parent DocType
             frm.set_value('default_system_number', current_row.system_number);
         } else {
             // If the user unchecks a row, verify if any default remains

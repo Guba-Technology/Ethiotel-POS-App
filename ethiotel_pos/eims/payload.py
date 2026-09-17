@@ -8,11 +8,9 @@ from .constants import (
     ID_TYPE_ALIASES,
     ID_TYPES,
     MOR_PAYMENT_MODES,
-    SOURCE_SYSTEM_GPS_FIELDS,
     VALID_UNITS,
     WALK_IN_CUSTOMER,
 )
-from .geo import enforce_geo_fence
 
 import frappe
 
@@ -136,7 +134,6 @@ def validate_invoice_for_eims(doc):
                 title="EIMS Payment Mode Error",
             )
 
-    # --- Withholding validations ---
     has_withholding = False
     for te in (doc.taxes or []):
         account = te.account_head
@@ -145,8 +142,13 @@ def validate_invoice_for_eims(doc):
         if classify_withholding(account):
             has_withholding = True
             break
-
-    if has_withholding:
+    if has_withholding and doc.doctype == "POS Invoice":
+        frappe.throw(
+            "Withholding tax accounts are present but this is a <b>POS Invoice</b>. "
+            "POS invoices cannot carry withholding. Change the Tax Temmplate",
+            title="EIMS Withholding Validation Error",
+        )
+    if has_withholding and doc.doctype != "POS Invoice" and not is_walk_in:
         if transaction_type not in ("B2B", "B2G"):
             frappe.throw(
                 f"Withholding tax accounts are present but <b>Transaction Type</b> is "
@@ -346,7 +348,8 @@ class EIMSConnectorPayload:
         if is_walk_in:
             # Walk-in sales have no registered buyer: the invoice keeps the
             # walk-in name but the MoR submission is a minimal B2C with no
-            # TIN, no ID and no contact details.
+            # ID and no contact details. A TIN captured at the register
+            # (custom_buyer_tin) is still sent when one was typed.
             cust_details = frappe._dict({
                 "name": WALK_IN_CUSTOMER,
                 "legal_name": None, "tin_number": "", "email": "",
@@ -362,7 +365,10 @@ class EIMSConnectorPayload:
             cust_link = f"/app/customer-details/{cust_details.name}"
 
         # BuyerDetails.Tin — Conditional, required only if transaction is NOT B2C/G2C
-        raw_tin = cust_details.tin_number or ""
+        # A TIN captured at the POS register (custom_buyer_tin) takes precedence,
+        # so even walk-in sales carry a buyer TIN when the cashier typed one.
+        invoice_tin = getattr(invoice_doc, "custom_buyer_tin", "") or ""
+        raw_tin = invoice_tin or cust_details.tin_number or ""
         clean_tin = re.sub(r"\D", "", str(raw_tin))
 
         buyer_email = (cust_details.email or "").strip()
@@ -518,6 +524,7 @@ class EIMSConnectorPayload:
             }
         else:
             payload["BuyerDetails"] = {"LegalName": WALK_IN_CUSTOMER}
+            _add_if_present(payload["BuyerDetails"], "Tin", clean_tin)
 
         # SellerDetails
         _add_if_present(payload["SellerDetails"], "VatNumber", seller_vat_number)
@@ -567,17 +574,6 @@ class EIMSConnectorPayload:
         # SourceSystem
         _add_if_present(payload["SourceSystem"], "CashierName", cashier_name)
         _add_if_present(payload["SourceSystem"], "SalesPersonName", cashier_name)
-
-        # Art 4(5)(b): transaction geo-location (only when the invoice carries
-        # GPS coordinates). Real enforcement happens at sale/registration time
-        # via enforce_geo_fence; the payload just mirrors the recorded point.
-        gps_lat = getattr(invoice_doc, "custom_gps_lat", None)
-        gps_lng = getattr(invoice_doc, "custom_gps_lng", None)
-        if gps_lat is not None and gps_lng is not None and str(gps_lat).strip() and str(gps_lng).strip():
-            # payload["SourceSystem"][SOURCE_SYSTEM_GPS_FIELDS[0]] = float(gps_lat)
-            # payload["SourceSystem"][SOURCE_SYSTEM_GPS_FIELDS[1]] = float(gps_lng)
-            enforce_geo_fence(float(gps_lat), float(gps_lng), invoice_name=invoice_doc.name,
-                              invoice_type=invoice_doc.doctype)
 
         # PaymentDetails
         _add_if_present(payload["PaymentDetails"], "Mode", payment_mode)

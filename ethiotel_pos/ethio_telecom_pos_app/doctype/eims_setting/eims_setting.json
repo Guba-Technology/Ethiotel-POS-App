@@ -28,9 +28,6 @@
   "min_with_am_services",
   "section_break_public_verify",
   "public_verify_enabled",
-  "enforce_geo_fence",
-  "geo_fence_polygon",
-  "device_location_report_interval",
   "remote_verify_from_mor",
   "section_break_data_management",
   "service_terminated",
@@ -120,26 +117,6 @@
    "fieldname": "max_auto_retries",
    "fieldtype": "Int",
    "label": "Max Auto-Retries Per Invoice"
-  },
-  {
-   "default": "0",
-   "description": "When enabled, sales whose GPS point is outside the fence (Art 4(5)(c)) are blocked at registration until corrected.",
-   "fieldname": "enforce_geo_fence",
-   "fieldtype": "Check",
-   "label": "Enforce Geo-Fence (Block Sales Outside Authorized Area)"
-  },
-  {
-   "description": "Authorized work area as WKT POLYGON((lng lat, ...)) or JSON [[lng, lat], ...]. Per-device fences on the mPOS Device doctype override this.",
-   "fieldname": "geo_fence_polygon",
-   "fieldtype": "Long Text",
-   "label": "Default Geo-Fence Polygon"
-  },
-  {
-   "default": "30",
-   "description": "Frequency of the periodic mPOS device location report to the Authority (Art 4(5)(a)).",
-   "fieldname": "device_location_report_interval",
-   "fieldtype": "Int",
-   "label": "Device Location Report Interval (Minutes)"
   },
   {
    "default": "0",

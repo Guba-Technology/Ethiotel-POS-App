@@ -408,11 +408,6 @@ this.$el.on("click", ".fk-cats-nav-next", () => {
 			</div>`;
 	}
 
-	// ---------------------------------------------------------------
-	// Item details dialog (cart eye icon): image, price, stock, and the
-	// v1 field set — qty, uom, conversion factor, rate, discount %,
-	// warehouse + live stock, price list rate.
-	// ---------------------------------------------------------------
 	open_item_details(item, opts = {}) {
 		const me = this;
 		const key = item.item_code;
@@ -1141,6 +1136,7 @@ this.$el.on("click", ".fk-cats-nav-next", () => {
 		this.$el.find(".fk-tax-rate-label").text(`${flt(this.tax_rate || 0)}%`);
 	}
 
+
 	build_order_doc() {
 		const default_customer = this.customer || this.walk_in_customer || (this.shell.settings && this.shell.settings.customer) || null;
 		if (!default_customer) {
@@ -1212,10 +1208,7 @@ this.$el.on("click", ".fk-cats-nav-next", () => {
 		});
 	}
 
-	// ---------------------------------------------------------------
-	// Print from cart — save the order as a draft then print the given
-	// print format (mirrors v1's save_and_print).
-	// ---------------------------------------------------------------
+
 	save_and_print(print_format) {
 		if (!Object.keys(this.cart).length) {
 			frappe.show_alert({ message: __("You must add at least one item to print."), indicator: "orange" });
@@ -1267,6 +1260,12 @@ this.$el.on("click", ".fk-cats-nav-next", () => {
 			<div class="fk-pay-layout">
 				<div class="fk-pay-finalize">
 					<div class="fk-pay-title">${__("Finalize Payment")}</div>
+					<div>
+						<div class="fk-pay-section-title">${__("Customer TIN (optional)")}</div>
+						<div class="fk-pay-amount-row">
+							<input type="text" class="fk-buyer-tin-input" placeholder="${__("Buyer TIN")}" autocomplete="off" />
+						</div>
+					</div>
 					<div>
 						<div class="fk-pay-section-title">${__("Payment Mode")}</div>
 						<div class="fk-pay-modes">
@@ -1408,6 +1407,12 @@ this.$el.on("click", ".fk-cats-nav-next", () => {
 				return;
 			}
 			doc.payments = [{ mode_of_payment: selected_mode, amount: total }];
+			const buyer_tin = String($($body).find(".fk-buyer-tin-input").val() || "").replace(/\D/g, "");
+			if (buyer_tin) {
+				doc.custom_buyer_tin = buyer_tin;
+			} else {
+				doc.custom_buyer_tin = null;
+			}
 
 			// OFFLINE MODE — queue the order locally, sync when back online
 			if (!erpnext.POSV2.Offline.is_online()) {

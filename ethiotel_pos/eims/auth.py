@@ -1,15 +1,10 @@
 import json
-
 import requests
-
 from frappe.utils import get_datetime, now_datetime
-
 import frappe
-
 
 class EIMSConnectorAuth:
     def get_valid_token(self, force_refresh=False):
-       
         default_client = self.get_default_client_data()
         current_sys = (default_client.system_number or "").strip()
         cached_sys = (getattr(self.settings, "token_system_number", "") or "").strip()

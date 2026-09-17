@@ -1874,6 +1874,12 @@
 				<div class="fk-pay-finalize">
 					<div class="fk-pay-title">${__("Finalize Payment")}</div>
 					<div>
+						<div class="fk-pay-section-title">${__("Customer TIN (optional)")}</div>
+						<div class="fk-pay-amount-row">
+							<input type="text" class="fk-buyer-tin-input" placeholder="${__("Buyer TIN")}" autocomplete="off" />
+						</div>
+					</div>
+					<div>
 						<div class="fk-pay-section-title">${__("Payment Mode")}</div>
 						<div class="fk-pay-modes">
 							${(modes.length ? modes : [default_mode]).map((m) => `
@@ -2001,6 +2007,12 @@
           return;
         }
         doc.payments = [{ mode_of_payment: selected_mode, amount: total }];
+        const buyer_tin = String($($body).find(".fk-buyer-tin-input").val() || "").replace(/\D/g, "");
+        if (buyer_tin) {
+          doc.custom_buyer_tin = buyer_tin;
+        } else {
+          doc.custom_buyer_tin = null;
+        }
         if (!erpnext.POSV2.Offline.is_online()) {
           erpnext.POSV2.Offline.queue_order(doc);
           dialog.hide();
@@ -3582,4 +3594,4 @@
     }
   };
 })();
-//# sourceMappingURL=ethiotel-pos-v2.bundle.XBMWM67O.js.map
+//# sourceMappingURL=ethiotel-pos-v2.bundle.CXZCFARZ.js.map

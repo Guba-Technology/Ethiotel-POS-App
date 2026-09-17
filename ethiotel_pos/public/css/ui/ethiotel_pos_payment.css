@@ -162,6 +162,20 @@
 	flex-direction: column;
 	gap: 10px;
 }
+.fk-buyer-tin-input {
+	width: 100%;
+	border: 1px solid var(--fk-border);
+	border-radius: 10px;
+	background: var(--fk-surface);
+	padding: 10px 12px;
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--fk-ink);
+	outline: none;
+	min-width: 0;
+}
+.fk-buyer-tin-input::placeholder { color: var(--fk-grey-500, #9ca3af); font-weight: 500; }
+.fk-buyer-tin-input:focus { border-color: var(--fk-primary); box-shadow: 0 0 0 3px var(--fk-primary-soft); }
 .fk-pay-input {
 	display: flex;
 	align-items: center;

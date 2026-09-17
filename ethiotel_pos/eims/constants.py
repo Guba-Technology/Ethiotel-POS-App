@@ -11,10 +11,6 @@ VERIFY_ENDPOINT = "/v1/verify"
 SALES_RECEIPT_ENDPOINT = "/v1/receipt/sales"
 WITHHOLDING_RECEIPT_ENDPOINT = "/v1/receipt/withholding"
 
-# Best-guess (UNCONFIRMED): device geo-location report (Art 4(5)(b)).
-# Confirm the exact path with MoR.
-DEVICE_LOCATION_REPORT_ENDPOINT = "/v1/device/location"
-
 ID_TYPES = {"NID", "KID", "SID", "WID", "PST", "DLS", "MRS"}
 
 ID_TYPE_ALIASES = {
@@ -50,8 +46,3 @@ MOR_PAYMENT_MODES = (
 )
 
 VALID_UNITS = {"LTR", "MTR", "101", "PCS", "ROL", "MTS", "PKG", "SET", "KLG"}
-
-# Art 4(5)(b): transaction geo-location travels inside the registration
-# payload under SourceSystem. Field names follow the EIRMS v1 convention;
-# confirm exact names with MoR before finalizing.
-SOURCE_SYSTEM_GPS_FIELDS = ("GpsLatitude", "GpsLongitude")

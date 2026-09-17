@@ -61,57 +61,6 @@ def retry_failed_eims_submissions():
         )
 
 
-def report_device_locations():
-    """Daily scheduler entry point (Art 4(5)(a)).
-
-    Collects the mPOS device heartbeats recorded since the configured report
-    interval, flags devices that went silent, and hands the batch to the MoR
-    transmission step (currently a stub until MoR publishes the route)."""
-    from ethiotel_pos.eims.audit import log_audit
-
-    settings = frappe.get_doc("EIMS Setting")
-    interval = int(settings.get("device_location_report_interval") or 0)
-    if interval <= 0:
-        return
-
-    devices = frappe.db.get_all("mPOS Device", filters={"authorized": 1}, pluck="name")
-    if not devices:
-        return
-
-    since = frappe.utils.add_to_date(frappe.utils.now_datetime(), minutes=-interval)
-    rows = frappe.db.get_all(
-        "EIMS Geo Log",
-        filters={"source": "Heartbeat", "timestamp": [">", since]},
-        fields=["device", "latitude", "longitude", "accuracy", "timestamp"],
-        order_by="timestamp asc",
-    )
-
-    _flag_missing_heartbeats(devices, rows, interval)
-    if rows:
-        log_audit(
-            "Data Export",
-            success=True,
-            description=f"Device location report batch ready: {len(rows)} heartbeats collected (Art 4(5)(a)).",
-        )
-        eims_logger.info("Device location report collected: %s rows", len(rows))
-
-
-def _flag_missing_heartbeats(devices, rows, interval):
-    from ethiotel_pos.eims.audit import log_audit
-
-    seen = {r.get("device") for r in rows if r.get("device")}
-    missing = [d for d in devices if d not in seen]
-    if missing:
-        eims_logger.warning(
-            "mPOS devices missing heartbeats (>%s min since report): %s", interval, missing
-        )
-        log_audit(
-            "Data Export",
-            success=False,
-            description=f"mPOS device heartbeat gap: no location report within {interval} minutes for {missing}",
-        )
-
-
 def _retry_batch(doctype, names):
     for name in names:
         try:

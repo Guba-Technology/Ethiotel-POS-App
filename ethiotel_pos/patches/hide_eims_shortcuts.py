@@ -2,7 +2,7 @@ import frappe
 
 
 WORKSPACE_NAME = "Tele POS"
-HIDE_LINK_LABELS = {"EIMS Manual Invoice", "EIMS Geo Log"}
+HIDE_LINK_LABELS = {"EIMS Manual Invoice"}
 
 
 def execute():

@@ -1,9 +1,3 @@
-// =====================================================================
-// PHASE 1 — SHELL
-// The POS shell: builds the HTML template, wires the topbar, boots the
-// WorkspaceManager + Sidebar, resolves the open shift, and keeps the
-// clock / network / status bar live.
-// =====================================================================
 erpnext.POSV2 = erpnext.POSV2 || {};
 
 erpnext.POSV2.Shell = class {
