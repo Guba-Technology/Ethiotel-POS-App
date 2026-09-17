@@ -230,6 +230,7 @@ class EIMSConnectorSubmit:
                             success=True,
                             description="Already registered with EIRMS (idempotent resend)",
                         )
+                        _enqueue(send_registered_receipt, invoice_name=invoice_name, doctype=doctype)
                         return {"status": "Transmitted", "message": f"Already registered. IRN: {irn}"}
 
                 # Max 2 attempts reached or non-retryable error - fail with full context
@@ -450,6 +451,7 @@ class EIMSConnectorSubmit:
                         request_brief=(request_body if isinstance(request_body, str) else json.dumps(request_body, separators=(",", ":")))[:2000],
                         response_brief=response.text[:2000],
                     )
+                    _enqueue(send_registered_receipt, invoice_name=manual_invoice_name, doctype="EIMS Manual Invoice")
                     return {"status": "Registered", "message": f"Manual invoice registered. IRN: {irn}"}
 
                 expected_num = self._parse_expected_doc_num(response.text)
@@ -487,6 +489,7 @@ class EIMSConnectorSubmit:
                         "error_log": "",
                     }, update_modified=True)
                     frappe.db.commit()
+                    _enqueue(send_registered_receipt, invoice_name=manual_invoice_name, doctype="EIMS Manual Invoice")
                     return {"status": "Registered", "message": f"Already registered. IRN: {doc.custom_irn}"}
                 break
 
@@ -723,6 +726,7 @@ class EIMSConnectorSubmit:
                         results_map[doc.name] = {"status": "Transmitted", "message": f"Successfully registered. IRN: {irn}"}
                         successes += 1
                         logs.append(f"[{doc.name}] Success -> IRN: {irn} (DocNum: {assigned_num}, via single-invoice fallback)")
+                        _enqueue(send_registered_receipt, invoice_name=doc.name, doctype="Sales Invoice")
                     else:
                         conversation_id = res_json.get("conversationId") if isinstance(res_json, dict) else None
                         frappe.db.set_value("Sales Invoice", doc.name, {
@@ -884,6 +888,7 @@ class EIMSConnectorSubmit:
                         successes += 1
                         logs.append(f"[{doc.name}] Success -> IRN: {irn} (DocNum: {assigned_num})")
                         last_committed_irn = irn
+                        _enqueue(send_registered_receipt, invoice_name=doc.name, doctype="Sales Invoice")
                     else:
                         rule_error = item.get("ruleError")
                         if rule_error:

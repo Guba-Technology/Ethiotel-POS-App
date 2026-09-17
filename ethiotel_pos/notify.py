@@ -15,7 +15,8 @@ def _settings():
 
 def _buyer_contact(invoice_doc):
     """Resolve buyer email + phone for a registered invoice.
-    Precedence: Customer Details -> Customer custom_eims_* -> invoice contact fields."""
+    Precedence: Customer Details -> Customer custom_eims_* -> invoice
+    contact/buyer fields (works for Sales Invoice and EIMS Manual Invoice)."""
     email = None
     phone = None
     customer = invoice_doc.get("customer")
@@ -26,12 +27,10 @@ def _buyer_contact(invoice_doc):
             )
             email = (row or {}).get("email") or None
             phone = (row or {}).get("phone") or None
-        # if not email and frappe.db.exists("Customer", customer):
-        #     email = frappe.db.get_value("Customer", customer, "custom_eims_email") or None
     if not email:
-        email = invoice_doc.get("contact_email")
+        email = invoice_doc.get("contact_email") or invoice_doc.get("buyer_email")
     if not phone:
-        phone = invoice_doc.get("contact_mobile")
+        phone = invoice_doc.get("contact_mobile") or invoice_doc.get("buyer_phone")
     return email, phone
 
 
@@ -156,19 +155,20 @@ def _button(label, href):
 def _invoice_summary_rows(doc, irn):
     payment_terms = doc.get("payment_terms") or doc.get("terms") or "N/A"
     payment_method = doc.get("mode_of_payment") or doc.get("payment_method") or "N/A"
+    post_date = doc.get("posting_date") or doc.get("invoice_date")
     return [
         ("Invoice Number", doc.get("name")),
         ("Invoice Reference (IRN)", irn or "-"),
         ("Document Type", "Tax Invoice"),
         ("Payment Terms", payment_terms),
         ("Payment Method", payment_method),
-        ("Date", frappe.utils.format_datetime(doc.get("posting_date"))),
+        ("Date", frappe.utils.format_datetime(post_date) if post_date else "-"),
     ]
 
 
 def _build_registered_email(doc, invoice_name, irn, receipt_url):
     org = doc.get("company") or "Ethio Telecom"
-    buyer_name = doc.get("customer_name") or doc.get("customer") or "customer"
+    buyer_name = doc.get("customer_name") or doc.get("buyer_name") or doc.get("customer") or "customer"
     amount = frappe.utils.fmt_money(doc.get("grand_total"), currency=doc.get("currency"))
     body = f"""
 <p style="font-size:11px;color:#6a6d70;letter-spacing:1.5px;font-weight:bold;text-transform:uppercase;margin:0 0 6px;">
@@ -234,12 +234,13 @@ def _build_cancellation_email(doc, invoice_name, irn):
 # ---------------------------------------------------------------------------
 
 def _build_registered_sms(doc, invoice_name, irn, amount):
-    org = doc.get("company") or ""
-    customer = doc.get("customer_name") or doc.get("customer") or "customer"
+    org = doc.get("company") or "Ethio Telecom"
+    customer = doc.get("customer_name") or doc.get("buyer_name") or doc.get("customer") or "customer"
     check_url = "{0}/invoice_receipt?irn={1}".format(
         frappe.utils.get_url().rstrip("/"), irn
     )
-    inv_date = frappe.utils.format_date(doc.get("posting_date")) if doc.get("posting_date") else "-"
+    post_date = doc.get("posting_date") or doc.get("invoice_date")
+    inv_date = frappe.utils.format_date(post_date) if post_date else "-"
     try:
         amount_txt = f"{float(amount):,.2f}"
     except (TypeError, ValueError):
@@ -257,8 +258,9 @@ def _build_registered_sms(doc, invoice_name, irn, amount):
 
 def _build_cancellation_sms(doc, invoice_name, irn):
     org = doc.get("company") or "Ethio Telecom"
+    customer = doc.get("customer_name") or doc.get("buyer_name") or doc.get("customer") or "customer"
     return (
-        f"{org}: Your tax invoice {invoice_name} (IRN {irn}) has been "
+        f"Dear {customer}, your tax invoice {invoice_name} (IRN {irn}) has been "
         "cancelled in Ethiopia's Electronic Invoicing System. "
         "Please contact the merchant if this was not expected."
     )

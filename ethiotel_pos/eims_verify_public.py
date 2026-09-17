@@ -57,28 +57,51 @@ def _safe_local(invoice):
 
 def _lookup_local(irn):
     company_name = None
-    for doctype in ("Sales Invoice", "POS Invoice"):
-        row = frappe.db.get_value(
-            doctype,
-            {"custom_irn": irn},
-            [
-                "name",
-                "custom_document_number",
-                "custom_irn",
-                "custom_eims_status",
-                "custom_qr_code_url",
-                "company",
-                "customer",
-                "customer_name",
-                "posting_date",
-                "currency",
-                "net_total",
-                "total_taxes_and_charges",
-                "discount_amount",
-                "grand_total",
-            ],
-            as_dict=True,
-        )
+    for doctype in ("Sales Invoice", "POS Invoice", "EIMS Manual Invoice"):
+        row = None
+        if doctype == "EIMS Manual Invoice":
+            row = frappe.db.get_value(
+                "EIMS Manual Invoice",
+                {"custom_irn": irn},
+                [
+                    "name",
+                    "custom_document_number",
+                    "custom_irn",
+                    "status as custom_eims_status",
+                    "custom_qr_code_url",
+                    "company",
+                    "buyer_name as customer_name",
+                    "invoice_date as posting_date",
+                    "currency",
+                    "pre_tax_total as net_total",
+                    "tax_total as total_taxes_and_charges",
+                    "0 as discount_amount",
+                    "grand_total",
+                ],
+                as_dict=True,
+            )
+        else:
+            row = frappe.db.get_value(
+                doctype,
+                {"custom_irn": irn},
+                [
+                    "name",
+                    "custom_document_number",
+                    "custom_irn",
+                    "custom_eims_status",
+                    "custom_qr_code_url",
+                    "company",
+                    "customer",
+                    "customer_name",
+                    "posting_date",
+                    "currency",
+                    "net_total",
+                    "total_taxes_and_charges",
+                    "discount_amount",
+                    "grand_total",
+                ],
+                as_dict=True,
+            )
         if row:
             company = row.get("company")
             if company:

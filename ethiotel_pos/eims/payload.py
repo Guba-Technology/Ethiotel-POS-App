@@ -55,24 +55,47 @@ def validate_invoice_for_eims(doc):
         cust_details = frappe.get_doc("Customer Details", doc.customer)
         cust_link = f"/app/customer-details/{cust_details.name}"
 
-        # TIN
-        raw_tin = cust_details.tin_number or ""
+        # TIN: allow invoice-level override via `custom_buyer_tin`. The selected
+        # raw value (invoice override if present, otherwise the stored
+        # `Customer Details.tin_number`) is normalized and validated here so
+        # invalid overrides are rejected early while preserving the existing
+        # fallback behaviour.
+        invoice_tin = getattr(doc, "custom_buyer_tin", "") or ""
+        raw_tin = invoice_tin if invoice_tin else (cust_details.tin_number or "")
         clean_tin = re.sub(r"\D", "", str(raw_tin))
-        if transaction_type not in ("B2C", "G2C"):
-            if not clean_tin or len(clean_tin) < 10 or len(clean_tin) > 20:
+
+        # If an override was supplied on the invoice, reject it when invalid.
+        if invoice_tin:
+            if transaction_type not in ("B2C", "G2C"):
+                if not clean_tin or len(clean_tin) < 10 or len(clean_tin) > 20:
+                    frappe.throw(
+                        f"<b>Invoice Buyer TIN</b> must be purely numeric and between 10 and 20 "
+                        f"digits long. Found override: '{invoice_tin}'.",
+                        title="EIMS Schema Error: Invalid Invoice Buyer TIN",
+                    )
+            elif clean_tin and (len(clean_tin) < 10 or len(clean_tin) > 20):
+                frappe.throw(
+                    f"<b>Invoice Buyer TIN</b> must be purely numeric and between 10 and 20 "
+                    f"digits long. Found override: '{invoice_tin}'.",
+                    title="EIMS Schema Error: Invalid Invoice Buyer TIN",
+                )
+        else:
+            # No invoice override; validate the stored Customer Details TIN
+            if transaction_type not in ("B2C", "G2C"):
+                if not clean_tin or len(clean_tin) < 10 or len(clean_tin) > 20:
+                    frappe.throw(
+                        f"<b>TIN Number</b> must be purely numeric and between 10 and 20 "
+                        f"digits long on <a href='{cust_link}'>{cust_details.name}</a>. "
+                        f"Found: '{raw_tin}'.",
+                        title="EIMS Schema Error: Invalid TIN",
+                    )
+            elif clean_tin and (len(clean_tin) < 10 or len(clean_tin) > 20):
                 frappe.throw(
                     f"<b>TIN Number</b> must be purely numeric and between 10 and 20 "
                     f"digits long on <a href='{cust_link}'>{cust_details.name}</a>. "
                     f"Found: '{raw_tin}'.",
                     title="EIMS Schema Error: Invalid TIN",
                 )
-        elif clean_tin and (len(clean_tin) < 10 or len(clean_tin) > 20):
-            frappe.throw(
-                f"<b>TIN Number</b> must be purely numeric and between 10 and 20 "
-                f"digits long on <a href='{cust_link}'>{cust_details.name}</a>. "
-                f"Found: '{raw_tin}'.",
-                title="EIMS Schema Error: Invalid TIN",
-            )
 
         # Email
         buyer_email = (cust_details.email or "").strip()
