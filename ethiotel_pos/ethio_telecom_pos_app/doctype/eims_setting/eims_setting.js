@@ -13,6 +13,29 @@ frappe.ui.form.on('EIMS Setting', {
             frappe.msgprint(__('Only one row can be marked as default.'));
             frappe.validated = false;
         }
+    },
+    refresh: function(frm) {
+        if (frm.doc.sms_enabled) {
+            frm.add_custom_button(__('Send Test SMS'), function() {
+                frappe.prompt([
+                    { fieldname: 'phone', label: __('Recipient Phone'), fieldtype: 'Data', reqd: 1 },
+                    { fieldname: 'message', label: __('Message'), fieldtype: 'Small Text' }
+                ], function(values) {
+                    frappe.call({
+                        method: 'ethiotel_pos.ethio_telecom_pos_app.doctype.eims_setting.eims_setting.send_test_sms',
+                        args: { phone: values.phone, message: values.message },
+                        callback: function(r) {
+                            if (r.message && r.message.sent) {
+                                frappe.msgprint(__('Test SMS sent successfully.'));
+                            } else {
+                                let reason = (r.message && r.message.reason) || 'unknown';
+                                frappe.msgprint(__('Test SMS failed: {0}', [reason]));
+                            }
+                        }
+                    });
+                }, __('Send Test SMS'));
+            }, __('SMS'));
+        }
     }
 });
 

@@ -10,6 +10,7 @@ from frappe.utils import get_datetime, now_datetime
 from .audit import log_audit
 from .constants import EIMS_MIN_BULK_SIZE
 from .logging_setup import eims_logger
+from .sanitize import redact_payload
 from ethiotel_pos.notify import _enqueue, send_registered_receipt
 
 import frappe
@@ -236,7 +237,7 @@ class EIMSConnectorSubmit:
                 frappe.db.commit()
 
                 error_msg = (
-                    f"Error {response.status_code}: {response.text} "
+                    f"Error {response.status_code}: {redact_payload(response.text)} "
                     f"(attempted doc_num={doc_num}, invoice={invoice_name})"
                 )
                 frappe.log_error(message=error_msg, title=f"EIMS submission rejected: {invoice_name}")
@@ -490,12 +491,12 @@ class EIMSConnectorSubmit:
                 break
 
             error_msg = (
-                f"Error {response.status_code}: {response.text} "
+                f"Error {response.status_code}: {redact_payload(response.text)} "
                 f"(attempted doc_num={doc_num}, manual_invoice={manual_invoice_name})"
             ) if response else "No response"
             frappe.db.set_value("EIMS Manual Invoice", manual_invoice_name, {
                 "status": "Failed",
-                "error_log": response.text[:2000] if response else error_msg,
+                "error_log": redact_payload(response.text) if response else redact_payload(error_msg),
             }, update_modified=True)
             frappe.db.commit()
             frappe.log_error(message=error_msg, title=f"EIMS manual submission rejected: {manual_invoice_name}")
@@ -507,7 +508,7 @@ class EIMSConnectorSubmit:
                 document_number=doc_num,
                 success=False,
                 description="EIRMS rejected the manual invoice submission",
-                response_brief=response.text[:2000] if response else error_msg,
+                response_brief=redact_payload(response.text) if response else redact_payload(error_msg),
             )
             return {"status": "Failed", "message": error_msg}
 
@@ -601,7 +602,7 @@ class EIMSConnectorSubmit:
         response = self._post_with_retry(register_url, request_body, auth_headers, 15)
         eims_logger.debug(
             "Single-invoice fallback for %s (DocNum %s) - status: %s body: %s",
-            doc.name, assigned_num, response.status_code, response.text
+            doc.name, assigned_num, response.status_code, redact_payload(response.text)
         )
 
         if response.status_code == 401:
@@ -736,7 +737,7 @@ class EIMSConnectorSubmit:
                         pending_count += 1
                         logs.append(f"[{doc.name}] Pending -> submitted via single-invoice fallback, awaiting callback (DocNum {assigned_num})")
                 else:
-                    error_msg = f"Error {response.status_code}: {response.text}"
+                    error_msg = f"Error {response.status_code}: {redact_payload(response.text)}"
                     frappe.db.set_value("Sales Invoice", doc.name, "custom_eims_status", "Failed", update_modified=True)
                     results_map[doc.name] = {"status": "Rule Error", "message": error_msg}
                     failures += 1
@@ -788,16 +789,16 @@ class EIMSConnectorSubmit:
                 response = self._post_with_retry(register_url, request_body, auth_headers, 30)
 
                 eims_logger.debug("Response status: %s", response.status_code)
-                eims_logger.debug("Response body: %s", response.text)
+                eims_logger.debug("Response body (redacted): %s", redact_payload(response.text))
 
                 if response.status_code == 401:
                     token = self.get_valid_token(force_refresh=True)
                     auth_headers["Authorization"] = f"Bearer {token}"
                     response = self._post_with_retry(register_url, request_body, auth_headers, 30)
-                    eims_logger.debug("Retry after 401 - status: %s body: %s", response.status_code, response.text)
+                    eims_logger.debug("Retry after 401 - status: %s body: %s", response.status_code, redact_payload(response.text))
 
                 if response.status_code not in (200, 201):
-                    error_msg = f"Error {response.status_code}: {response.text}"
+                    error_msg = f"Error {response.status_code}: {redact_payload(response.text)}"
                     frappe.log_error(message=error_msg, title="EIMS Bulk Submission Rejected")
                     eims_logger.error("Bulk submission rejected: %s", error_msg)
                     for doc, assigned_num in batch_docs:
@@ -886,9 +887,9 @@ class EIMSConnectorSubmit:
                     else:
                         rule_error = item.get("ruleError")
                         if rule_error:
-                            error_detail = json.dumps(rule_error)
+                            error_detail = redact_payload(json.dumps(rule_error))
                         else:
-                            error_detail = json.dumps(item)
+                            error_detail = redact_payload(json.dumps(item))
 
                         frappe.db.set_value("Sales Invoice", doc.name, "custom_eims_status", "Failed", update_modified=True)
                         results_map[doc.name] = {

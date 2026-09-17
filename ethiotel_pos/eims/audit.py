@@ -1,6 +1,8 @@
 import frappe
 from frappe.utils import now_datetime
 
+from .sanitize import redact_payload
+
 
 def log_audit(
     action,
@@ -30,8 +32,8 @@ def log_audit(
                 "success": 1 if success else 0,
                 "ip_address": getattr(frappe.local, "request_ip", None),
                 "description": description,
-                "request_brief": request_brief,
-                "response_brief": response_brief,
+                "request_brief": redact_payload(request_brief),
+                "response_brief": redact_payload(response_brief),
             }
         ).insert(ignore_permissions=True, ignore_mandatory=True)
         frappe.db.commit()

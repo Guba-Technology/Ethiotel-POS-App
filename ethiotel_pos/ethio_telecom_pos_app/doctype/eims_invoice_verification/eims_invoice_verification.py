@@ -7,6 +7,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import global_date_format, fmt_money, now_datetime
+from ethiotel_pos.eims.sanitize import redact_payload
 from ethiotel_pos.eims_connector import EIMSConnector
 
 
@@ -59,7 +60,7 @@ class EIMSInvoiceVerification(Document):
                 status_phrase = (response.reason or "Error").strip()
                 err_msg = f"HTTP {response.status_code} {status_phrase}"
                 frappe.log_error(
-                    f"Non-JSON verify response ({response.status_code}): {response.text[:500]}",
+                    f"Non-JSON verify response ({response.status_code}): {redact_payload(response.text)}",
                     "EIMS Verify Non-JSON Response",
                 )
                 self.map_failure(err_msg)

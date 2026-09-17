@@ -53,3 +53,19 @@ class EIMSSetting(Document):
 			success=True,
 			description=f"EIMS Setting updated by {self.modified_by or frappe.session.user}",
 		)
+
+
+@frappe.whitelist()
+def send_test_sms(phone, message=None):
+	"""Send a test SMS to verify the AfroMessage configuration from the
+	EIMS Setting form. Requires sms_enabled + tokened/from settings.
+	Only users who can write EIMS Setting may trigger a test SMS to
+	avoid it being abused to burn SMS credits."""
+	if not frappe.has_permission("EIMS Setting", "write"):
+		frappe.throw("Insufficient permission to send a test SMS.")
+	from ethiotel_pos.notify import send_sms
+
+	return send_sms(
+		phone,
+		message or "Test from Ethio Telecom POS - SMS notifications are working.",
+	)

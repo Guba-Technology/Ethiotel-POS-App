@@ -24,13 +24,26 @@ def _require_invoice_write(invoice_name):
 
 
 @frappe.whitelist()
-def get_token(force_refresh=False):
-    """Return a valid EIMS token. Query param `force_refresh=1` forces renewal."""
+def get_token(force_refresh=False, include_raw=0):
+    """Return EIMS token status. Query param `force_refresh=1` forces renewal.
+
+    The raw MoR bearer token is NOT returned to the browser by default - only a
+    masked status is. Pass `include_raw=1` (System Manager only) where a
+    server-to-server client genuinely needs the raw token."""
     try:
         _require_eims_setting_read()
         connector = EIMSConnector()
         token = connector.get_valid_token(force_refresh=bool(int(force_refresh)) if isinstance(force_refresh, (str, int)) else bool(force_refresh))
-        return {"status": "ok", "token": token}
+        expires_on = connector.settings.token_expiry
+        if bool(int(include_raw)) if isinstance(include_raw, (str, int)) else bool(include_raw):
+            return {"status": "ok", "token": token, "expires_on": expires_on}
+        masked = (token[:3] + "****") if token and len(token) > 6 else "***"
+        return {
+            "status": "ok",
+            "has_valid_token": bool(token),
+            "token_masked": masked,
+            "expires_on": expires_on,
+        }
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "EIMS API: get_token error")
         return {"status": "error", "message": str(e)}

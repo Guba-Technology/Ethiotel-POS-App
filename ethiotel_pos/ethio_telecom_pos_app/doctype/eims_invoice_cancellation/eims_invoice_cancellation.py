@@ -9,6 +9,7 @@ from frappe.model.document import Document
 from frappe.utils import now_datetime
 from ethiotel_pos.eims_connector import EIMSConnector
 from ethiotel_pos.eims.audit import log_audit
+from ethiotel_pos.eims.sanitize import redact_payload
 from ethiotel_pos.notify import _enqueue, send_cancellation_notice
 
 CANCELLATION_REASON_MAP = {
@@ -76,7 +77,7 @@ class EIMSInvoiceCancellation(Document):
             try:
                 res_data = response.json()
             except ValueError:
-                err_msg = f"HTTP {response.status_code}: {response.text[:200]}"
+                err_msg = f"HTTP {response.status_code}: {redact_payload(response.text)}"
                 self.map_failure(err_msg)
                 self.cancelled_at = now_datetime()
                 self.save()
@@ -171,7 +172,7 @@ class EIMSInvoiceCancellation(Document):
             try:
                 res_data = response.json()
             except ValueError:
-                err_msg = f"HTTP {response.status_code}: {response.text[:200]}"
+                err_msg = f"HTTP {response.status_code}: {redact_payload(response.text)}"
                 for row in self.invoice_list:
                     row.status = "Failed"
                 self.map_failure(err_msg)

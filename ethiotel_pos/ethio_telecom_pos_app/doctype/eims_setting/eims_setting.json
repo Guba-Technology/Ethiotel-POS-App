@@ -12,6 +12,7 @@
   "column_break_hsmj",
   "seller_tin",
   "base_url",
+  "organization",
   "section_break_ilyk",
   "client_data_list",
   "default_taxes_and_charges_template",
@@ -31,7 +32,13 @@
   "remote_verify_from_mor",
   "section_break_data_management",
   "service_terminated",
-  "terminated_on"
+  "terminated_on",
+  "sms_config_tab",
+  "afro_base_url",
+  "afro_token",
+  "afro_from_id",
+  "afro_sender",
+  "afro_callback"
  ],
  "fields": [
   {
@@ -59,7 +66,7 @@
   },
   {
    "fieldname": "current_access_token",
-   "fieldtype": "Small Text",
+   "fieldtype": "Password",
    "label": "Current Access Token"
   },
   {
@@ -72,7 +79,8 @@
   {
    "fieldname": "token_expiry",
    "fieldtype": "Datetime",
-   "label": "Token Expiry"
+   "label": "Token Expiry",
+   "read_only": 1
   },
   {
    "fieldname": "client_data_list",
@@ -127,7 +135,7 @@
   },
   {
    "default": "0",
-   "description": "Reserved for SMS receipt notifications. No provider is wired yet; enabling only logs attempts.",
+   "description": "Send SMS invoice notifications (registration + cancellation) to the buyer's phone via AfroMessage. Configure the provider in the SMS Notifications section below.",
    "fieldname": "sms_enabled",
    "fieldtype": "Check",
    "label": "SMS Notifications Enabled"
@@ -184,13 +192,55 @@
    "fieldname": "min_with_am_services",
    "fieldtype": "Currency",
    "label": "Minimum Transaction Amount for Withholding Services"
+  },
+  {
+   "default": "https://api.afromessage.com/api/send",
+   "description": "Message API send endpoint. Point this at the sandbox base URL to test without sending real SMS.",
+   "fieldname": "afro_base_url",
+   "fieldtype": "Data",
+   "label": "Message Base URL"
+  },
+  {
+   "description": "Your Message bearer token (from the token parameter). Stored encrypted at rest.",
+   "fieldname": "afro_token",
+   "fieldtype": "Password",
+   "label": "Message Token"
+  },
+  {
+   "description": "The Message 'from' identifier (fromId) issued with your account.",
+   "fieldname": "afro_from_id",
+   "fieldtype": "Data",
+   "label": "Message From (Sender ID)"
+  },
+  {
+   "description": "Optional short sender name shown to the recipient. Leave empty to use the From sender ID.",
+   "fieldname": "afro_sender",
+   "fieldtype": "Data",
+   "label": "Sender Name (Optional)"
+  },
+  {
+   "description": "Optional callback/webhook URL AfroMessage calls with delivery status. Leave empty if unused.",
+   "fieldname": "afro_callback",
+   "fieldtype": "Data",
+   "label": "Delivery Callback (Optional)"
+  },
+  {
+   "fieldname": "organization",
+   "fieldtype": "Link",
+   "label": "Organization",
+   "options": "Company"
+  },
+  {
+   "fieldname": "sms_config_tab",
+   "fieldtype": "Tab Break",
+   "label": "SMS Config"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-16 17:31:46.887391",
+ "modified": "2026-09-17 16:17:21.444908",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "EIMS Setting",

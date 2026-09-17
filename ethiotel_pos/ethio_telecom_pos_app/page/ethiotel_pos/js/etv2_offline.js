@@ -11,7 +11,9 @@ erpnext.POSV2 = erpnext.POSV2 || {};
 erpnext.POSV2.Offline = {
 	OFFLINE_KEY: "et_offline_queue",
 	CATALOG_KEY: "et_catalog_cache",
-	CATALOG_TTL: 1000 * 60 * 60 * 24, // 24h
+	CATALOG_TTL: 1000 * 60 * 60 * 6, // 6h: keep item cache short so stale product data is not retained
+	QUEUE_MAX_AGE: 1000 * 60 * 60 * 24 * 2, // 48h: drop orders that can never be synced
+	SYNCED_FLAG_KEY: "et_offline_synced_at",
 
 	is_online() {
 		return navigator.onLine !== false;
@@ -72,7 +74,14 @@ erpnext.POSV2.Offline = {
 	// ---------------- offline order queue ----------------
 	get_queue() {
 		try {
-			return JSON.parse(localStorage.getItem(this.OFFLINE_KEY) || "[]");
+			const queue = JSON.parse(localStorage.getItem(this.OFFLINE_KEY) || "[]");
+			// purge stale entries so synced/customer data is not kept indefinitely
+			const now = Date.now();
+			const fresh = queue.filter((q) => q && (now - (q.ts || 0)) <= this.QUEUE_MAX_AGE);
+			if (fresh.length !== queue.length) {
+				this.set_queue(fresh);
+			}
+			return fresh;
 		} catch (e) {
 			return [];
 		}
@@ -86,10 +95,31 @@ erpnext.POSV2.Offline = {
 		}
 	},
 
+	clear_synced_flag() {
+		try {
+			localStorage.removeItem(this.SYNCED_FLAG_KEY);
+		} catch (e) {
+			// ignore
+		}
+	},
+
 	queue_order(doc) {
-		const queue = this.get_queue();
-		queue.push({ doc, ts: Date.now(), ref: `offline-${Date.now()}-${queue.length + 1}` });
+		const original = this.get_queue();
+		const now = Date.now();
+		// store a copy; strip non-essential fields that could carry PII to disk
+		const doc_copy = this._sanitize_doc_for_storage(doc);
+		const queue = original.concat([{ doc: doc_copy, ts: now, ref: `offline-${now}-${original.length + 1}` }]);
 		this.set_queue(queue);
+	},
+
+	_sanitize_doc_for_storage(doc) {
+		// Keep the order replayable but avoid persisting fields the server can
+		// re-resolve (addresses/contacts) that include PII in browser storage.
+		const clean = { ...(doc || {}) };
+		[ "customer_address", "shipping_address_name", "shipping_address", "contact_email",
+		  "contact_mobile", "contact_phone", "additional_notes", "remark", "remarks" ]
+			.forEach((k) => { if (k in clean) clean[k] = ""; });
+		return clean;
 	},
 
 	// ---------------- sync ----------------
@@ -111,6 +141,7 @@ erpnext.POSV2.Offline = {
 				if (r.message && r.message.status === "ok") {
 					const remaining = queue.slice(0, -1);
 					this.set_queue(remaining);
+					this.clear_synced_flag();
 					return { synced: 1, invoice_name: r.message.invoice_name };
 				}
 				return { synced: 0 };

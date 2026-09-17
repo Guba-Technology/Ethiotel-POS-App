@@ -14,7 +14,11 @@ def get_eims_logger():
         formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-        logger.setLevel(logging.DEBUG)
+        # INFO by default so full request/response bodies (even redacted ones)
+        # are not persisted to the debug log file in production. Set
+        # eims_debug_logging=1 in site config to enable DEBUG diagnostics.
+        level = logging.DEBUG if frappe.conf.get("eims_debug_logging") else logging.INFO
+        logger.setLevel(level)
         logger.propagate = False
     return logger
 

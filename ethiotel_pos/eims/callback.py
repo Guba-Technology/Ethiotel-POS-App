@@ -2,6 +2,7 @@ import json
 
 from .audit import log_audit
 from .logging_setup import eims_logger
+from .sanitize import redact_payload
 from ethiotel_pos.notify import _enqueue, send_registered_receipt
 
 import frappe
@@ -11,7 +12,7 @@ class EIMSConnectorCallback:
     def _handle_callback(self):
         try:
             raw_body = frappe.request.get_data(as_text=True)
-            eims_logger.debug("Callback received: %s", raw_body)
+            eims_logger.debug("Callback received (redacted): %s", redact_payload(raw_body))
 
             if not raw_body or not raw_body.strip():
                 eims_logger.debug("Empty callback body received - ignoring.")
@@ -106,7 +107,7 @@ class EIMSConnectorCallback:
                         _enqueue(send_registered_receipt, invoice_name=invoice_name, doctype="Sales Invoice")
                     else:
                         rule_error = item.get("ruleError")
-                        error_detail = json.dumps(rule_error) if rule_error else json.dumps(item)
+                        error_detail = redact_payload(json.dumps(rule_error) if rule_error else json.dumps(item))
 
                         last_doc_num += 1
                         frappe.db.set_value("Sales Invoice", invoice_name, {

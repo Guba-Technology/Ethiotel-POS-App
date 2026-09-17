@@ -1,4 +1,5 @@
 import frappe
+import requests
 
 BRAND_COLOR = "#0057A3"
 BRAND_COLOR_DARK = "#003E75"
@@ -232,65 +233,151 @@ def _build_cancellation_email(doc, invoice_name, irn):
 # Outbound notifications
 # ---------------------------------------------------------------------------
 
+def _build_registered_sms(doc, invoice_name, irn, amount):
+    org = doc.get("company") or ""
+    customer = doc.get("customer_name") or doc.get("customer") or "customer"
+    check_url = "{0}/invoice_receipt?irn={1}".format(
+        frappe.utils.get_url().rstrip("/"), irn
+    )
+    inv_date = frappe.utils.format_date(doc.get("posting_date")) if doc.get("posting_date") else "-"
+    try:
+        amount_txt = f"{float(amount):,.2f}"
+    except (TypeError, ValueError):
+        amount_txt = str(amount)
+    return (
+        f"Dear {customer}, your Invoice #{invoice_name} with Total amount "
+        f"{amount_txt} {doc.get('currency') or ''} has been registered with MoR.\n"
+        f"IRN: {irn}\n"
+        f"You can check it here: {check_url}\n"
+        f"Invoice Date: {inv_date}\n"
+        f"Status: Registered\n\n"
+        f"We honor working with us {org}."
+    )
+
+
+def _build_cancellation_sms(doc, invoice_name, irn):
+    org = doc.get("company") or "Ethio Telecom"
+    return (
+        f"{org}: Your tax invoice {invoice_name} (IRN {irn}) has been "
+        "cancelled in Ethiopia's Electronic Invoicing System. "
+        "Please contact the merchant if this was not expected."
+    )
+
+
 def send_registered_receipt(invoice_name, doctype="Sales Invoice"):
-    """Email the buyer with a web link to their registered invoice receipt
-    (Art 4(1), 22(5)(b)). The receipt page allows printing in A4 / 80mm / 60mm
-    and downloading as PDF, so no PDF is generated server-side."""
-    if not _settings()["email"]:
-        return {"sent": False, "reason": "disabled"}
+    """Notify the buyer that their invoice was registered with MoR.
+    Sends email (if email_receipt_delivery is on) and/or SMS (if
+    sms_enabled + AfroMessage is configured)."""
+    flags = _settings()
+    results = {"email": {"sent": False}, "sms": {"sent": False}}
     try:
         doc = frappe.get_doc(doctype, invoice_name)
-        email, _ = _buyer_contact(doc)
-        if not email:
-            return {"sent": False, "reason": "no_buyer_email"}
+        email, phone = _buyer_contact(doc)
         irn = doc.get("custom_irn")
-        receipt_url = "{0}/invoice_receipt?irn={1}".format(
-            frappe.utils.get_url().rstrip("/"), irn
-        )
-        frappe.sendmail(
-            recipients=[email],
-            subject=f"Your Tax Invoice {invoice_name} - IRN {irn}",
-            message=_build_registered_email(doc, invoice_name, irn, receipt_url),
-            reference_doctype=doctype,
-            reference_name=invoice_name,
-        )
-        frappe.msgprint("Registered invoice email sent.")
-        return {"sent": True}
+        grand_total = doc.get("grand_total")
+
+        if flags["email"]:
+            if not email:
+                results["email"] = {"sent": False, "reason": "no_buyer_email"}
+            else:
+                receipt_url = "{0}/invoice_receipt?irn={1}".format(
+                    frappe.utils.get_url().rstrip("/"), irn
+                )
+                frappe.sendmail(
+                    recipients=[email],
+                    subject=f"Your Tax Invoice {invoice_name} - IRN {irn}",
+                    message=_build_registered_email(doc, invoice_name, irn, receipt_url),
+                    reference_doctype=doctype,
+                    reference_name=invoice_name,
+                )
+                frappe.msgprint("Registered invoice email sent.")
+                results["email"] = {"sent": True}
+
+        if flags["sms"] and phone:
+            results["sms"] = send_sms(phone, _build_registered_sms(doc, invoice_name, irn, grand_total))
+
     except Exception:
         frappe.msgprint("Failed to send registered invoice email. Please check the error log.")
         frappe.log_error(frappe.get_traceback(), f"EIMS receipt email failed for {invoice_name}")
         return {"sent": False}
 
+    sent_any = results["email"]["sent"] or results["sms"]["sent"]
+    return {"sent": sent_any, "channels": results}
+
 
 def send_cancellation_notice(invoice_name, irn, doctype="Sales Invoice"):
-    """Notify the buyer digitally when their invoice is cancelled (Art 26(5))."""
-    if not _settings()["email"]:
-        return {"sent": False, "reason": "disabled"}
+    """Notify the buyer digitally when their invoice is cancelled (Art 26(5)).
+    Sends email (if email_receipt_delivery is on) and/or SMS (if sms_enabled
+    + sms_provider is configured)."""
+    flags = _settings()
+    results = {"email": {"sent": False}, "sms": {"sent": False}}
     try:
         doc = frappe.get_doc(doctype, invoice_name)
-        email, _ = _buyer_contact(doc)
-        if not email:
-            return {"sent": False, "reason": "no_buyer_email"}
-        frappe.sendmail(
-            recipients=[email],
-            subject=f"Your Tax Invoice {invoice_name} was cancelled",
-            message=_build_cancellation_email(doc, invoice_name, irn),
-            reference_doctype=doctype,
-            reference_name=invoice_name,
-        )
-        return {"sent": True}
+        email, phone = _buyer_contact(doc)
+
+        if flags["email"]:
+            if not email:
+                results["email"] = {"sent": False, "reason": "no_buyer_email"}
+            else:
+                frappe.sendmail(
+                    recipients=[email],
+                    subject=f"Your Tax Invoice {invoice_name} was cancelled",
+                    message=_build_cancellation_email(doc, invoice_name, irn),
+                    reference_doctype=doctype,
+                    reference_name=invoice_name,
+                )
+                results["email"] = {"sent": True}
+
+        if flags["sms"] and phone:
+            results["sms"] = send_sms(phone, _build_cancellation_sms(doc, invoice_name, irn))
+
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"EIMS cancellation notice failed for {invoice_name}")
         return {"sent": False}
 
+    sent_any = results["email"]["sent"] or results["sms"]["sent"]
+    return {"sent": sent_any, "channels": results}
+
 
 def send_sms(phone, text):
-    """SMS notification stub.
 
-    No SMS provider is configured in this deployment. When one is registered
-    (EIMS Setting -> sms_enabled) this should POST via the configured provider;
-    until then it only logs to EIMS Audit Log as evidence of attempt."""
-    if not _settings()["sms"]:
+    settings = frappe.get_doc("EIMS Setting")
+    if not bool(settings.get("sms_enabled")):
         return {"sent": False, "reason": "disabled"}
-    frappe.log_error(f"EIMS SMS stub: to={phone} text={text}", "EIMS SMS (stub)")
-    return {"sent": False, "reason": "no_provider_configured"}
+    if not phone:
+        return {"sent": False, "reason": "no_recipient"}
+    if not settings.get("afro_base_url"):
+        return {"sent": False, "reason": "no_provider_configured"}
+    base_url = (settings.get("afro_base_url") or "").strip()
+    token = settings.get_password("afro_token") if settings.get("afro_token") else None
+    if not token or not settings.get("afro_from_id"):
+        return {"sent": False, "reason": "no_provider_configured"}
+
+    payload = {
+        "from": (settings.get("afro_from_id") or "").strip(),
+        "sender": (settings.get("afro_sender") or "").strip(),
+        "to": str(phone).strip(),
+        "message": (text or "")[:1000],
+        "callback": (settings.get("afro_callback") or "").strip(),
+    }
+    try:
+        response = requests.get(
+            base_url,
+            headers={"Authorization": f"Bearer {token}"},
+            params=payload,
+            timeout=15,
+        )
+    except requests.exceptions.RequestException as e:
+        frappe.log_error(f"EIMS SMS send failed (transport): {e}", "EIMS SMS")
+        return {"sent": False, "reason": "transport_error"}
+
+    try:
+        response_json = response.json()
+    except ValueError:
+        frappe.log_error(f"EIMS SMS send failed (HTTP {response.status_code}): {response.text[:300]}", "EIMS SMS")
+        return {"sent": False, "reason": "bad_response"}
+
+    if response.status_code == 200 and response_json.get("acknowledge") == "success":
+        return {"sent": True, "provider_id": response_json.get("data", {}).get("message_id") or ""}
+    frappe.log_error(f"EIMS SMS send failed (HTTP {response.status_code}): {response_json}", "EIMS SMS")
+    return {"sent": False, "reason": "provider_error"}

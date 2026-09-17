@@ -1,4 +1,21 @@
 (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __propIsEnum = Object.prototype.propertyIsEnumerable;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __spreadValues = (a, b) => {
+    for (var prop in b || (b = {}))
+      if (__hasOwnProp.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    if (__getOwnPropSymbols)
+      for (var prop of __getOwnPropSymbols(b)) {
+        if (__propIsEnum.call(b, prop))
+          __defNormalProp(a, prop, b[prop]);
+      }
+    return a;
+  };
+
   // ../ethiotel_pos/ethiotel_pos/ethio_telecom_pos_app/page/ethiotel_pos/js/etv2_template.js
   erpnext.POSV2 = erpnext.POSV2 || {};
   erpnext.POSV2.SHELL_TEMPLATE = `
@@ -202,7 +219,9 @@
   erpnext.POSV2.Offline = {
     OFFLINE_KEY: "et_offline_queue",
     CATALOG_KEY: "et_catalog_cache",
-    CATALOG_TTL: 1e3 * 60 * 60 * 24,
+    CATALOG_TTL: 1e3 * 60 * 60 * 6,
+    QUEUE_MAX_AGE: 1e3 * 60 * 60 * 24 * 2,
+    SYNCED_FLAG_KEY: "et_offline_synced_at",
     is_online() {
       return navigator.onLine !== false;
     },
@@ -257,7 +276,13 @@
     },
     get_queue() {
       try {
-        return JSON.parse(localStorage.getItem(this.OFFLINE_KEY) || "[]");
+        const queue = JSON.parse(localStorage.getItem(this.OFFLINE_KEY) || "[]");
+        const now = Date.now();
+        const fresh = queue.filter((q) => q && now - (q.ts || 0) <= this.QUEUE_MAX_AGE);
+        if (fresh.length !== queue.length) {
+          this.set_queue(fresh);
+        }
+        return fresh;
       } catch (e) {
         return [];
       }
@@ -268,10 +293,36 @@
       } catch (e) {
       }
     },
+    clear_synced_flag() {
+      try {
+        localStorage.removeItem(this.SYNCED_FLAG_KEY);
+      } catch (e) {
+      }
+    },
     queue_order(doc) {
-      const queue = this.get_queue();
-      queue.push({ doc, ts: Date.now(), ref: `offline-${Date.now()}-${queue.length + 1}` });
+      const original = this.get_queue();
+      const now = Date.now();
+      const doc_copy = this._sanitize_doc_for_storage(doc);
+      const queue = original.concat([{ doc: doc_copy, ts: now, ref: `offline-${now}-${original.length + 1}` }]);
       this.set_queue(queue);
+    },
+    _sanitize_doc_for_storage(doc) {
+      const clean = __spreadValues({}, doc || {});
+      [
+        "customer_address",
+        "shipping_address_name",
+        "shipping_address",
+        "contact_email",
+        "contact_mobile",
+        "contact_phone",
+        "additional_notes",
+        "remark",
+        "remarks"
+      ].forEach((k) => {
+        if (k in clean)
+          clean[k] = "";
+      });
+      return clean;
     },
     sync_queue() {
       if (!this.is_online())
@@ -290,6 +341,7 @@
         if (r.message && r.message.status === "ok") {
           const remaining = queue.slice(0, -1);
           this.set_queue(remaining);
+          this.clear_synced_flag();
           return { synced: 1, invoice_name: r.message.invoice_name };
         }
         return { synced: 0 };
@@ -3594,4 +3646,4 @@
     }
   };
 })();
-//# sourceMappingURL=ethiotel-pos-v2.bundle.CXZCFARZ.js.map
+//# sourceMappingURL=ethiotel-pos-v2.bundle.U2NI4Q5O.js.map
