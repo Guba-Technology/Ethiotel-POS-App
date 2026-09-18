@@ -193,6 +193,11 @@
    "fieldtype": "Currency",
    "label": "Minimum Transaction Amount for Withholding Services"
   },
+    {
+     "fieldname": "sms_config_tab",
+     "fieldtype": "Tab Break",
+     "label": "SMS Config"
+    },
   {
    "default": "https://api.afromessage.com/api/send",
    "description": "Message API send endpoint. Point this at the sandbox base URL to test without sending real SMS.",
@@ -229,12 +234,8 @@
    "fieldtype": "Link",
    "label": "Organization",
    "options": "Company"
-  },
-  {
-   "fieldname": "sms_config_tab",
-   "fieldtype": "Tab Break",
-   "label": "SMS Config"
   }
+
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,

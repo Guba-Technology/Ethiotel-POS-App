@@ -766,8 +766,12 @@ def get_mor_invoices(status="", search_term="", limit=50, offset=0):
 	workspace (filtered by custom_eims_status)."""
 	try:
 		_ensure_pos_mor_fields()
-	except Exception:
+	except Exception as e:
+		# Roll back any partial DB changes performed while attempting to
+		# ensure required custom fields, then re-raise to stop invoice
+		# insertion when setup is not available.
 		frappe.db.rollback()
+		raise
 	cond = "docstatus = 1"
 	params = []
 	st = (status or "").strip()
@@ -1259,7 +1263,11 @@ def get_invoices(search_term="", status="", limit=50, from_date=None, to_date=No
 	try:
 		_ensure_pos_mor_fields()
 	except Exception:
+		# Roll back any partial DB changes performed while attempting to
+		# ensure required custom fields, then re-raise to stop offline
+		# replay so the queued invoice remains for retry.
 		frappe.db.rollback()
+		raise
 	cond = "1=1"
 	params = []
 	st = (status or "").strip()

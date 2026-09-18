@@ -71,6 +71,11 @@ def _lookup_local(irn):
                     "custom_qr_code_url",
                     "company",
                     "buyer_name as customer_name",
+                    # manual invoice fields for buyer fallback when no Customer Details record
+                    "manual_buyer_tin",
+                    "manual_buyer_email",
+                    "manual_buyer_phone",
+                    "manual_buyer_id",
                     "invoice_date as posting_date",
                     "currency",
                     "pre_tax_total as net_total",
@@ -269,6 +274,24 @@ def _buyer_details(invoice):
                 if value not in (None, ""):
                     buyer[key] = value
             buyer.setdefault("legal_name", invoice.get("customer_name") or customer)
+    else:
+        # No registered Customer Details record: allow EIMS Manual Invoice's
+        # manual buyer fields to populate the same receipt keys used for
+        # standard invoices (preserve legal_name behavior above).
+        # Map manual fields onto the same keys as Customer Details.
+        manual_tin = invoice.get("manual_buyer_tin")
+        manual_email = invoice.get("manual_buyer_email")
+        manual_phone = invoice.get("manual_buyer_phone")
+        manual_id = invoice.get("manual_buyer_id")
+        if manual_tin:
+            buyer.setdefault("tin_number", manual_tin)
+        if manual_email:
+            buyer.setdefault("email", manual_email)
+        if manual_phone:
+            buyer.setdefault("phone", manual_phone)
+        if manual_id:
+            buyer.setdefault("id_number", manual_id)
+        buyer.setdefault("legal_name", invoice.get("customer_name") or (customer or WALK_IN_CUSTOMER))
     return buyer
 
 

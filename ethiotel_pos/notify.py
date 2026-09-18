@@ -273,35 +273,48 @@ def send_registered_receipt(invoice_name, doctype="Sales Invoice"):
     flags = _settings()
     results = {"email": {"sent": False}, "sms": {"sent": False}}
     try:
-        doc = frappe.get_doc(doctype, invoice_name)
-        email, phone = _buyer_contact(doc)
-        irn = doc.get("custom_irn")
-        grand_total = doc.get("grand_total")
-
-        if flags["email"]:
-            if not email:
-                results["email"] = {"sent": False, "reason": "no_buyer_email"}
-            else:
-                receipt_url = "{0}/invoice_receipt?irn={1}".format(
-                    frappe.utils.get_url().rstrip("/"), irn
-                )
-                frappe.sendmail(
-                    recipients=[email],
-                    subject=f"Your Tax Invoice {invoice_name} - IRN {irn}",
-                    message=_build_registered_email(doc, invoice_name, irn, receipt_url),
-                    reference_doctype=doctype,
-                    reference_name=invoice_name,
-                )
-                frappe.msgprint("Registered invoice email sent.")
-                results["email"] = {"sent": True}
-
-        if flags["sms"] and phone:
-            results["sms"] = send_sms(phone, _build_registered_sms(doc, invoice_name, irn, grand_total))
-
+      doc = frappe.get_doc(doctype, invoice_name)
     except Exception:
-        frappe.msgprint("Failed to send registered invoice email. Please check the error log.")
-        frappe.log_error(frappe.get_traceback(), f"EIMS receipt email failed for {invoice_name}")
-        return {"sent": False}
+      frappe.log_error(frappe.get_traceback(), f"EIMS receipt retrieval failed for {invoice_name}")
+      return {"sent": False}
+
+    email, phone = _buyer_contact(doc)
+    irn = doc.get("custom_irn")
+    grand_total = doc.get("grand_total")
+
+    # Email channel: isolate failures so SMS still runs
+    if flags["email"]:
+      if not email:
+        results["email"] = {"sent": False, "reason": "no_buyer_email"}
+      else:
+        try:
+          receipt_url = "{0}/invoice_receipt?irn={1}".format(
+            frappe.utils.get_url().rstrip("/"), irn
+          )
+          frappe.sendmail(
+            recipients=[email],
+            subject=f"Your Tax Invoice {invoice_name} - IRN {irn}",
+            message=_build_registered_email(doc, invoice_name, irn, receipt_url),
+            reference_doctype=doctype,
+            reference_name=invoice_name,
+          )
+          frappe.msgprint("Registered invoice email sent.")
+          results["email"] = {"sent": True}
+        except Exception:
+          results["email"] = {"sent": False}
+          frappe.msgprint("Failed to send registered invoice email. Please check the error log.")
+          frappe.log_error(frappe.get_traceback(), f"EIMS receipt email failed for {invoice_name}")
+
+    # SMS channel: isolate failures so email result is preserved
+    if flags["sms"]:
+      if not phone:
+        results["sms"] = {"sent": False, "reason": "no_recipient"}
+      else:
+        try:
+          results["sms"] = send_sms(phone, _build_registered_sms(doc, invoice_name, irn, grand_total))
+        except Exception:
+          results["sms"] = {"sent": False}
+          frappe.log_error(frappe.get_traceback(), f"EIMS SMS send failed for {invoice_name}")
 
     sent_any = results["email"]["sent"] or results["sms"]["sent"]
     return {"sent": sent_any, "channels": results}
@@ -363,12 +376,12 @@ def send_sms(phone, text):
         "callback": (settings.get("afro_callback") or "").strip(),
     }
     try:
-        response = requests.get(
-            base_url,
-            headers={"Authorization": f"Bearer {token}"},
-            params=payload,
-            timeout=15,
-        )
+      response = requests.post(
+        base_url,
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload,
+        timeout=15,
+      )
     except requests.exceptions.RequestException as e:
         frappe.log_error(f"EIMS SMS send failed (transport): {e}", "EIMS SMS")
         return {"sent": False, "reason": "transport_error"}
@@ -380,6 +393,7 @@ def send_sms(phone, text):
         return {"sent": False, "reason": "bad_response"}
 
     if response.status_code == 200 and response_json.get("acknowledge") == "success":
-        return {"sent": True, "provider_id": response_json.get("data", {}).get("message_id") or ""}
+      # Prefer top-level message_id if present; fall back to empty string.
+      return {"sent": True, "provider_id": response_json.get("message_id") or ""}
     frappe.log_error(f"EIMS SMS send failed (HTTP {response.status_code}): {response_json}", "EIMS SMS")
     return {"sent": False, "reason": "provider_error"}

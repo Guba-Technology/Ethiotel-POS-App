@@ -78,8 +78,8 @@ def redact_payload(text) -> str:
     try:
         data = json.loads(text)
     except (ValueError, TypeError):
-        # Not JSON - truncate aggressively and mask long/base64-looking runs.
-        masked = _ENVELOPE_LIKE.sub("<redacted>", text)
-        return masked[:1000]
+        # Not JSON - never return original or partially-masked input. Return
+        # a fixed redacted marker to avoid leaking opaque response text.
+        return "<redacted>"
 
     return json.dumps(_redact_node(data), separators=(",", ":"), default=str)
