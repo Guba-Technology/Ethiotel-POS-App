@@ -214,7 +214,14 @@ fixtures = [
                     "Customer-custom_eims_subcity",
                     "Customer-custom_eims_locality",
                     "Sales Invoice-custom_transaction_type",
-                    "Sales Invoice-custom_mor_fields"
+                    "Sales Invoice-custom_eims_retry_count",
+                    "Sales Invoice-posa_client_request_id",
+                    "Sales Invoice-custom_irn",
+                    "Sales Invoice-custom_qr_code_url",
+                    "Sales Invoice-custom_conversation_id",
+                    "Sales Invoice-custom_mor_fields",
+                    "Sales Invoice-custom_eims_status",            
+
                 ),
             ]
         ],

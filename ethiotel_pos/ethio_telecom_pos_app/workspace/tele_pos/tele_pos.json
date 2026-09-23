@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"cJigdSD9mh\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Tele POS</span>\",\"col\":12}},{\"id\":\"4D2sc3CbN3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tele POS App\",\"col\":3}},{\"id\":\"GHhQ3ILXlU\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"EIRMS Settings\",\"col\":3}},{\"id\":\"nVBkn7nfDw\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"Avo6EE538Q\",\"type\":\"card\",\"data\":{\"card_name\":\"POS\",\"col\":4}},{\"id\":\"Yyedt5hgvr\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}},{\"id\":\"AHxV8LQ6Qd\",\"type\":\"card\",\"data\":{\"card_name\":\"MoR Tasks\",\"col\":4}},{\"id\":\"m0oQ_otGS6\",\"type\":\"card\",\"data\":{\"card_name\":\"Others\",\"col\":4}}]",
+ "content": "[{\"id\":\"cJigdSD9mh\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Tele POS</span>\",\"col\":12}},{\"id\":\"4D2sc3CbN3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tele POS App\",\"col\":3}},{\"id\":\"GHhQ3ILXlU\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"EIRMS Settings\",\"col\":3}},{\"id\":\"nVBkn7nfDw\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"Avo6EE538Q\",\"type\":\"card\",\"data\":{\"card_name\":\"POS\",\"col\":4}},{\"id\":\"dGLYKmzNWK\",\"type\":\"card\",\"data\":{\"card_name\":\"EIRMS\",\"col\":4}},{\"id\":\"Yyedt5hgvr\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}},{\"id\":\"m0oQ_otGS6\",\"type\":\"card\",\"data\":{\"card_name\":\"Others\",\"col\":4}}]",
  "creation": "2026-08-19 11:53:04.353047",
  "custom_blocks": [],
  "docstatus": 0,
@@ -25,31 +25,80 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Reports",
-   "link_count": 2,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "X Report",
+   "label": "EIMS Invoice Verification",
    "link_count": 0,
-   "link_to": "X Report",
-   "link_type": "Report",
+   "link_to": "EIMS Invoice Verification",
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   },
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Z Report",
+   "label": "EIMS Invoice Receipt",
    "link_count": 0,
-   "link_to": "Z Report",
-   "link_type": "Report",
+   "link_to": "EIMS Invoice Receipt",
+   "link_type": "DocType",
    "onboard": 0,
-   "report_ref_doctype": "Sales Invoice",
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "EIMS Invoice Cancellation",
+   "link_count": 0,
+   "link_to": "EIMS Invoice Cancellation",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Withholding Receipt",
+   "link_count": 0,
+   "link_to": "Withholding Receipt",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Others",
+   "link_count": 3,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "EIMS Audit Log",
+   "link_count": 0,
+   "link_to": "EIMS Audit Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Company",
+   "link_count": 0,
+   "link_to": "Company",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Account",
+   "link_count": 0,
+   "link_to": "Account",
+   "link_type": "DocType",
+   "onboard": 0,
    "type": "Link"
   },
   {
@@ -104,21 +153,11 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "MoR Tasks",
-   "link_count": 5,
+   "label": "EIRMS",
+   "link_count": 4,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Invoice Registration",
-   "link_count": 0,
-   "link_to": "Invoice Registration",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
   },
   {
    "hidden": 0,
@@ -163,64 +202,35 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Others",
-   "link_count": 6,
+   "label": "Reports",
+   "link_count": 2,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
   },
   {
    "hidden": 0,
-   "is_query_report": 0,
-   "label": "EIMS Audit Log",
+   "is_query_report": 1,
+   "label": "X Report",
    "link_count": 0,
-   "link_to": "EIMS Audit Log",
-   "link_type": "DocType",
+   "link_to": "X Report",
+   "link_type": "Report",
    "onboard": 0,
    "type": "Link"
   },
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Company",
+   "label": "Z Report",
    "link_count": 0,
-   "link_to": "Company",
-   "link_type": "DocType",
+   "link_to": "Z Report",
+   "link_type": "Report",
    "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Account",
-   "link_count": 0,
-   "link_to": "Account",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "EIMS Bulk Queue",
-   "link_count": 0,
-   "link_to": "EIMS Bulk Queue",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 1,
-   "is_query_report": 0,
-   "label": "EIMS Manual Invoice",
-   "link_count": 0,
-   "link_to": "EIMS Manual Invoice",
-   "link_type": "DocType",
-   "onboard": 0,
+   "report_ref_doctype": "Sales Invoice",
    "type": "Link"
   }
  ],
- "modified": "2026-09-22 08:58:21.674447",
+ "modified": "2026-09-23 15:40:18.439037",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "Tele POS",
