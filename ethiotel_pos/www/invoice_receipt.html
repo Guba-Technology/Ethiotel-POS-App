@@ -245,7 +245,7 @@
 
 {% block script %}
 <script>
-{% raw %}
+
 	function esc(v) {
 		return String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 			.replace(/"/g, "&quot;");
@@ -390,7 +390,7 @@
 
 		// ---- header ----
 		html += '<div class="doc-head-row">'
-			+ '<div class="doc-logo"><img src="/assets/ethiotel_pos/images/logo.png" alt="' + esc(org) + '" onerror="this.style.display=\'none\'" /></div>'
+			+ '<div class="doc-logo"><img src="/assets/ethiotel_pos/images/tele.jpg" alt="' + esc(org) + '" onerror="this.style.display=\'none\'" /></div>'
 			+ '<div class="doc-title-block"><div class="doc-subtitle">የደረሰኝ ቁጥር</div><div class="doc-company-name">' + esc(org) + '</div></div>'
 			+ '<div class="invoice-meta">'
 			+ '<div class="meta-row"><span>Invoice No:</span><span class="meta-value">' + esc(d.invoice_name || d.document_number || "-") + '</span></div>'
@@ -472,10 +472,6 @@
 	// -------------------------------------------------------------
 	// 80mm / 58mm — plain-text-style fiscal receipt
 	// -------------------------------------------------------------
-	// Field names here (d.system_number, d.sale_type, d.cashier,
-	// t.paid_amount, t.change_amount, d.tax_breakdown[]) are the best
-	// mapping to the target layout; adjust to whatever
-	// eims_verify_public.receipt_public actually returns.
 	function tSep() { return '<div class="t-sep"></div>'; }
 
 	function tRow(label, value) {
@@ -494,6 +490,11 @@
 		var t = d.totals || {};
 		var org = (d.seller && (d.seller.legal_name || d.seller.trade_name)) || "Ethio Telecom";
 		var addrParts = [d.seller && d.seller.city, d.seller && d.seller.region].filter(Boolean);
+		// append city, and region labels to addrParts
+		if (d.seller && d.seller.city) addrParts.push("City");
+		if (d.seller && d.seller.region) addrParts.push("Region");
+
+		
 
 		var html = '';
 
@@ -681,6 +682,6 @@
 			document.getElementById("irn-form").style.display = "block";
 		}
 	});
-{% endraw %}
+
 </script>
 {% endblock %}

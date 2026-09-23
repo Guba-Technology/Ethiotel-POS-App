@@ -6,6 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import fmt_money, flt
 from ethiotel_pos.eims_connector import EIMSConnector, resolve_mor_payment_mode
+from ethiotel_pos.notify import _enqueue, send_receipt_notice
 import base64
 from frappe.utils import money_in_words
 from frappe.utils import now_datetime
@@ -198,7 +199,9 @@ class EIMSInvoiceReceipt(Document):
                 
                 self.save()
                 frappe.db.commit()
-                
+
+                _enqueue(send_receipt_notice, receipt_name=self.name)
+
                 return {
                     "success": True,
                     "status": self.eims_status,
@@ -224,6 +227,8 @@ class EIMSInvoiceReceipt(Document):
                         )
                         self.save()
                         frappe.db.commit()
+
+                    _enqueue(send_receipt_notice, receipt_name=self.name)
                     return {
                         "success": True,
                         "status": self.eims_status,

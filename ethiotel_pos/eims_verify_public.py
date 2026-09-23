@@ -57,36 +57,9 @@ def _safe_local(invoice):
 
 def _lookup_local(irn):
     company_name = None
-    for doctype in ("Sales Invoice", "POS Invoice", "EIMS Manual Invoice"):
-        row = None
-        if doctype == "EIMS Manual Invoice":
-            row = frappe.db.get_value(
-                "EIMS Manual Invoice",
-                {"custom_irn": irn},
-                [
-                    "name",
-                    "custom_document_number",
-                    "custom_irn",
-                    "status as custom_eims_status",
-                    "custom_qr_code_url",
-                    "company",
-                    "buyer_name as customer_name",
-                    # manual invoice fields for buyer fallback when no Customer Details record
-                    "manual_buyer_tin",
-                    "manual_buyer_email",
-                    "manual_buyer_phone",
-                    "manual_buyer_id",
-                    "invoice_date as posting_date",
-                    "currency",
-                    "pre_tax_total as net_total",
-                    "tax_total as total_taxes_and_charges",
-                    "0 as discount_amount",
-                    "grand_total",
-                ],
-                as_dict=True,
-            )
-        else:
-            row = frappe.db.get_value(
+    for doctype in ("Sales Invoice", "POS Invoice"):
+        
+        row = frappe.db.get_value(
                 doctype,
                 {"custom_irn": irn},
                 [
@@ -99,6 +72,7 @@ def _lookup_local(irn):
                     "customer",
                     "customer_name",
                     "posting_date",
+                    "posting_time",
                     "currency",
                     "net_total",
                     "total_taxes_and_charges",
@@ -319,18 +293,17 @@ def _receipt_items(invoice):
 
 
 def _safe_receipt_local(invoice):
-    """Full public receipt: seller + buyer (customer details) + items +
-    totals + IRN/QR. Richer than the verification response because this is
-    the buyer-facing tax receipt (same information a printed receipt shows)."""
     status = invoice.get("custom_eims_status") or "Not Submitted"
     currency = invoice.get("currency") or "ETB"
     tax_total = _numeric(invoice.get("total_taxes_and_charges"), 0.0)
     net_total = _numeric(invoice.get("net_total"), 0.0)
     discount = _numeric(invoice.get("discount_amount"), 0.0)
     grand_total = _numeric(invoice.get("grand_total"), 0.0)
+    payed = grand_total - _numeric(invoice.get("outstanding_amount"), 0.0)
     if not net_total and isinstance(grand_total, (int, float)) and isinstance(tax_total, (int, float)):
                 net_total = round(grand_total - tax_total, 2)
-
+    settings = frappe.get_doc("EIMS Setting")
+    sysem_number = settings.get("default_system_number") or ""
     return {
         "verified": status == "Registered",
         "cancelled": status == "Cancelled",
@@ -338,10 +311,11 @@ def _safe_receipt_local(invoice):
         "invoice_name": invoice.get("name"),
         "document_number": invoice.get("custom_document_number"),
         "document_date": invoice.get("posting_date"),
+       
         "posting_time": invoice.get("posting_time"),
         "irn": invoice.get("custom_irn"),
-        "system_number": invoice.get("custom_system_number") or "",
-        "sale_type": invoice.get("custom_invoice_type") or "B2B",
+        "system_number": sysem_number,
+        "sale_type": invoice.get("custom_transaction_type") or "",
         "qr_code_url": invoice.get("custom_qr_code_url"),
         "currency": currency,
         "seller": _seller_details(invoice),
@@ -352,7 +326,7 @@ def _safe_receipt_local(invoice):
             "tax_total": tax_total,
             "discount": discount,
             "grand_total": grand_total,
-            "paid_amount": _numeric(invoice.get("paid_amount"), 0.0),
+            "paid_amount": payed,
             "outstanding_amount": _numeric(invoice.get("outstanding_amount"), 0.0),
         },
     }
@@ -360,10 +334,6 @@ def _safe_receipt_local(invoice):
 
 @frappe.whitelist(allow_guest=True)
 def receipt_public(irn=None, qr_payload=None):
-    """Public, abuse-limited tax receipt for a registered invoice.
-
-    Renders the full receipt data including the buyer (customer details) and
-    item lines — the same data a printed EIMS receipt carries."""
     if not frappe.db.get_single_value("EIMS Setting", "public_verify_enabled"):
         frappe.throw(
             "Public invoice receipt is disabled by the supplier.",
@@ -385,6 +355,7 @@ def receipt_public(irn=None, qr_payload=None):
     if local:
         log_audit("Receipt Authorization", success=local.get("custom_eims_status") == "Registered",
                   description=f"Public receipt (local lookup) of IRN {irn}")
+        print("Safe receipt local:", _safe_receipt_local(local))
         return _safe_receipt_local(local)
 
     settings = frappe.get_doc("EIMS Setting")

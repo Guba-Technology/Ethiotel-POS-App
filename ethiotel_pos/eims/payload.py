@@ -221,11 +221,115 @@ def validate_invoice_for_eims(doc):
                     title="EIMS Schema Error: Negative Quantity",
                 )
 
+    # --- CRE/DEB must mirror the original (TransactionType + ItemList order) ---
+    # EIMS compares DEB/CRE lines positionally against the referenced document
+    # (rule 7020) and requires the same TransactionType (rule 7030). Check at
+    # save time so bad notes never even reach registration.
+    note_type_here = "DEB" if getattr(doc, "is_debit_note", 0) else ("CRE" if getattr(doc, "is_return", 0) else "INV")
+    if note_type_here in ("CRE", "DEB"):
+        original_name = doc.get("return_against") or ""
+        if original_name:
+            snapshot = EIMSConnectorPayload()._note_reference_snapshot(original_name)
+            if snapshot["transaction_type"] and transaction_type != snapshot["transaction_type"]:
+                frappe.throw(
+                    f"<b>{note_type_here}</b> notes must use the same <b>Transaction Type</b> "
+                    f"as the original invoice ({original_name}). Note uses "
+                    f"'{transaction_type}' but the original registered "
+                    f"'{snapshot['transaction_type']}'.",
+                    title="EIMS Schema Error: Note Transaction Type Mismatch",
+                )
+            if snapshot["item_lines"]:
+                EIMSConnectorPayload()._align_note_items(
+                    doc.items or [], snapshot["item_lines"], doc, note_type_here)
+
+    # --- Every line must carry a TaxCode via the Taxes and Charges child ---
+    # table. MoR rejects any line missing TaxCode/TaxAmount (schema 1028). The
+    # Taxes and Charges table is the source: per-line item_tax_rate is a bonus
+    # override. Runs at save time so the user is prompted before registration.
+    if not _invoice_has_tax_code(doc):
+        frappe.throw(
+            f"<b>Tax Code required</b> for invoice <b>{doc.name}</b>.<br><br>"
+            f"EIMS requires every line to carry a <b>TaxCode</b> and <b>TaxAmount</b>. Add a "
+            f"tax row to the <b>Sales Taxes and Charges</b> table (e.g. <b>VAT15 - GT</b> for 15% "
+            f"VAT, <b>VAT0 - GT</b> for zero-rated, or <b>VATEX - GT</b> for exempt supplies) or "
+            f"set an <b>Item Tax Template</b> on the items, then save again.",
+            title="EIMS Schema Error: Missing Tax Code",
+        )
+
+
+def resolve_item_tax_rate(item_row, header_tax_code, header_tax_rate):
+    """Resolve the effective EIMS tax code + rate for one invoice line.
+
+    Mirrors the logic used when building the registration payload so the
+    same answer is produced at validate time (pre-save) and at submit time.
+    item_tax_rate is a JSON map like {"VAT15 - GT": 15}; the code is still
+    captured at 0% so VAT0 / VATEX lines send a valid TaxCode to MoR.
+    """
+    line_tax_rate = header_tax_rate
+    line_tax_code = header_tax_code
+    try:
+        item_tax_rate_map = json.loads(item_row.get("item_tax_rate") or "{}") or {}
+    except (ValueError, TypeError):
+        item_tax_rate_map = {}
+    fallback_code = None
+    for code, rate_val in item_tax_rate_map.items():
+        rate_val = float(rate_val or 0)
+        resolved = frappe.db.get_value("Account", code, "account_name") if code else None
+        if rate_val:
+            line_tax_rate = rate_val
+            line_tax_code = resolved or code
+            break
+        if fallback_code is None:
+            fallback_code = resolved or code
+    else:
+        # All entries are 0% (VAT0 / VATEX) — still send the code.
+        if fallback_code is not None:
+            line_tax_code = fallback_code
+            line_tax_rate = 0
+    return line_tax_code, line_tax_rate
+
+
+def header_tax_info(doc):
+    """Effective header-level EIMS tax code + rate from the first tax row.
+
+    Prefers the first row that actually carries a rate (the first row may be a
+    0% / exempt row on mixed invoices); falls back to the first row's code so
+    lines still carry a valid TaxCode."""
+    tax_type = ""
+    tax_rate = 0
+    tax_entries = doc.get("taxes")
+    if doc.get("taxes_and_charges") and tax_entries:
+        for te in tax_entries:
+            account = te.account_head
+            row_code = frappe.db.get_value("Account", account, "account_name")
+            row_rate = float(te.rate or 0)
+            if row_rate > 0:
+                return row_code, row_rate
+            if not tax_type:
+                tax_type = row_code
+    return tax_type, tax_rate
+
 
 def _add_if_present(target_dict, key, value):
 
     if value is not None and str(value).strip() != "":
         target_dict[key] = value
+
+
+def _invoice_has_tax_code(doc):
+    """True if the invoice carries a resolvable EIMS TaxCode anywhere.
+
+    Checks the Taxes and Charges child table first, then per-line
+    item_tax_rate overrides. Used by validate_invoice_for_eims to prompt
+    the user before a tax-less invoice ever reaches registration."""
+    header_code, header_rate = header_tax_info(doc)
+    if header_code:
+        return True
+    for item_row in (doc.get("items") or []):
+        line_code, _rate = resolve_item_tax_rate(item_row, "", 0)
+        if line_code:
+            return True
+    return False
 
 
 def resolve_mor_payment_mode(mode_of_payment):
@@ -342,6 +446,7 @@ class EIMSConnectorPayload:
                               override_note_type=None, override_note_ref_irn=None):
         company = frappe.get_doc("Company", invoice_doc.company)
         company_link = f"/app/company/{company.name}"
+        invoice_link = f"/app/sales-invoice/{invoice_doc.name}"
 
         is_walk_in = (invoice_doc.customer or "") == WALK_IN_CUSTOMER
 
@@ -470,11 +575,12 @@ class EIMSConnectorPayload:
             )
 
         note_ref_irn = None
+        note_ref_lines = []
+        original_name = invoice_doc.get("return_against") or None
         if note_type in ("CRE", "DEB"):
             if override_note_ref_irn:
                 note_ref_irn = override_note_ref_irn
             else:
-                original_name = invoice_doc.get("return_against") or None
                 note_ref_irn = self._lookup_irn_for_invoice(original_name) if original_name else None
             if not note_ref_irn:
                 frappe.throw(
@@ -484,6 +590,16 @@ class EIMSConnectorPayload:
                     f"is already populated, then try again.",
                     title="EIMS Schema Error: Missing Original Invoice IRN",
                 )
+
+            # MoR requires DEB/CRE notes to echo the referenced document's
+            # TransactionType and to mirror its ItemList positionally; otherwise
+            # registration is rejected with 7030 (transaction type does not
+            # match) and/or 7020 (item mismatch at line N). Adopt ground truth
+            # from the original's registered payload so the note matches.
+            ref_snapshot = self._note_reference_snapshot(original_name)
+            if ref_snapshot["transaction_type"]:
+                transaction_type = ref_snapshot["transaction_type"]
+            note_ref_lines = ref_snapshot["item_lines"]
 
         cashier_name = None
         sales_team_entries = invoice_doc.get("sales_team")
@@ -618,40 +734,25 @@ class EIMSConnectorPayload:
         payload["ValueDetails"]["TransactionWithholdValue"] = round(transaction_wht, 6)
         payload["ValueDetails"]["IncomeWithholdValue"] = round(income_wht, 6)
 
-        tax_type = ""
-        tax_rate = 0
-        tax_entries = invoice_doc.get("taxes")
-        if invoice_doc.taxes_and_charges and tax_entries:
-            # Pick the first tax row that actually carries a rate (the first
-            # row may be a 0% / exempt row on mixed invoices).
-            for te in tax_entries:
-                if float(te.rate or 0) > 0:
-                    account = te.account_head
-                    tax_type = frappe.db.get_value("Account", account, "account_name")
-                    tax_rate = float(te.rate)
-                    break
+        tax_type, tax_rate = header_tax_info(invoice_doc)
 
-        for idx, item in enumerate(invoice_doc.items, start=1):
+        note_ordered_items = list(invoice_doc.items or [])
+        if note_type in ("CRE", "DEB") and note_ref_lines:
+            note_ordered_items = self._align_note_items(
+                note_ordered_items, note_ref_lines, invoice_doc, note_type)
+
+        for idx, item in enumerate(note_ordered_items, start=1):
             is_note = note_type in ("CRE", "DEB")
             base_rate = abs(float(item.base_rate or 0.0))
             qty = abs(float(item.qty or 0.0))
             line_net_amount = abs(float(item.base_net_amount or item.net_amount or 0.0))
 
             # Per-item tax rate/code (item_tax_rate is a JSON map like
-            # {"VAT15 - GT": 15}) — falls back to the header tax row.
-            line_tax_rate = tax_rate
-            line_tax_code = tax_type
-            try:
-                item_tax_rate_map = json.loads(item.get("item_tax_rate") or "{}") or {}
-                for code, rate_val in item_tax_rate_map.items():
-                    rate_val = float(rate_val or 0)
-                    if rate_val:
-                        line_tax_rate = rate_val
-                        resolved = frappe.db.get_value("Account", code, "account_name") if code else None
-                        line_tax_code = resolved or code
-                        break
-            except (ValueError, TypeError):
-                pass
+            # {"VAT15 - GT": 15}) — falls back to the header tax row. The code
+            # is captured even at 0% so VAT0 / VATEX lines send a valid
+            # TaxCode to MoR.
+            line_tax_code, line_tax_rate = resolve_item_tax_rate(
+                item, tax_type, tax_rate)
 
             line_tax = round(line_net_amount * (line_tax_rate / 100), 6)
 
@@ -705,6 +806,127 @@ class EIMSConnectorPayload:
 
         self._validate_payload_schema_rules(payload, invoice_doc)
         return payload
+
+    def _note_reference_snapshot(self, original_name):
+        """Return the ground-truth snapshot EIMS accepted for the referenced
+        original invoice: its TransactionType and its ItemList (in registration
+        order). Falls back to the original document when no audit payload."""
+        ref = {"transaction_type": "", "item_lines": []}
+        if not original_name:
+            return ref
+
+        if frappe.db.exists("DocType", "EIMS Audit Log"):
+            rows = frappe.db.sql(
+                """SELECT request_brief FROM `tabEIMS Audit Log`
+                   WHERE invoice=%s AND action='Invoice Registration' AND success=1
+                   ORDER BY timestamp DESC LIMIT 1""",
+                original_name, as_dict=True)
+            if rows:
+                try:
+                    payload = json.loads(rows[0].get("request_brief") or "{}")
+                except (ValueError, TypeError):
+                    payload = {}
+                tt = (payload.get("TransactionType") or "").strip()
+                if tt:
+                    ref["transaction_type"] = tt
+                item_list = payload.get("ItemList") or []
+                if item_list:
+                    ref["item_lines"] = item_list
+                    return ref
+
+        for doctype, irn_field in (("Sales Invoice", "custom_irn"), ("POS Invoice", "custom_mor_irn")):
+            if frappe.db.exists(doctype, original_name):
+                doc = frappe.get_doc(doctype, original_name)
+                ref["transaction_type"] = (getattr(doc, "custom_transaction_type", "") or "").strip()
+                for it in (doc.get("items") or []):
+                    ref["item_lines"].append({
+                        "ItemCode": it.item_code,
+                        "Quantity": abs(float(it.qty or 0.0)),
+                        "Unit": (it.uom or "PCS").strip().upper(),
+                        "LineNumber": it.idx,
+                    })
+                break
+        return ref
+
+    def _align_note_items(self, note_items, ref_lines, invoice_doc, note_type):
+        """Reorder the note's items to mirror the original invoice's registered
+        ItemList order and raise clear pre-submission errors on missing, extra,
+        or mismatched lines. EIMS compares DEB/CRE lines positionally against
+        the referenced document (rule 7020), so the note must reproduce the
+        original's lines exactly."""
+        invoice_link = f"/app/sales-invoice/{invoice_doc.name}"
+        ref_codes = [
+            (str((line.get("ItemCode") or "")).strip()
+             or (line.get("ProductDescription") or "")
+             or (line.get("ItemDescription") or "")
+             or "")
+            for line in ref_lines
+        ]
+
+        used = set()
+        ordered = []
+        for pos, code in enumerate(ref_codes, start=1):
+            if not code:
+                continue
+            candidates = [i for i, it in enumerate(note_items)
+                          if it.item_code == code and i not in used]
+            if not candidates:
+                frappe.throw(
+                    f"Validation Error on <a href='{invoice_link}'>Sales Invoice "
+                    f"({invoice_doc.name})</a>:<br><br>"
+                    f"<b>{note_type}</b> notes must mirror the original registered "
+                    f"invoice line-by-line. Line {pos} of the original expects item "
+                    f"<b>{code}</b>, which is not present on this note. Add the matching "
+                    f"line (same item, quantity and unit) exactly as on the original "
+                    f"invoice, then resubmit.",
+                    title="EIMS Schema Error: Note Item Missing",
+                )
+            idx = candidates[0]
+            used.add(idx)
+            item = note_items[idx]
+            ref_line = ref_lines[pos - 1]
+
+            ref_qty = abs(float((ref_line.get("Quantity") or 0.0)))
+            note_qty = abs(float(item.qty or 0.0))
+            if abs(ref_qty - note_qty) > 0.005:
+                frappe.throw(
+                    f"Validation Error on <a href='{invoice_link}'>Sales Invoice "
+                    f"({invoice_doc.name})</a>:<br><br>"
+                    f"<b>{note_type}</b> line {pos} quantity does not match the original "
+                    f"invoice: note has <b>{note_qty}</b>, original registered <b>{ref_qty}</b> "
+                    f"for item <b>{item.item_code}</b>. Quantity must match the referenced "
+                    f"invoice for MoR to accept the {note_type}.",
+                    title="EIMS Schema Error: Note Quantity Mismatch",
+                )
+
+            ref_unit = (ref_line.get("Unit") or "PCS").strip().upper()
+            note_unit = str(item.uom or "PCS").strip().upper()
+            if ref_unit in VALID_UNITS and note_unit in VALID_UNITS and ref_unit != note_unit:
+                frappe.throw(
+                    f"Validation Error on <a href='{invoice_link}'>Sales Invoice "
+                    f"({invoice_doc.name})</a>:<br><br>"
+                    f"<b>{note_type}</b> line {pos} unit does not match the original "
+                    f"invoice: note has <b>{note_unit}</b>, original registered <b>{ref_unit}</b> "
+                    f"for item <b>{item.item_code}</b>. Use the same unit as the referenced "
+                    f"invoice before resubmitting.",
+                    title="EIMS Schema Error: Note Unit Mismatch",
+                )
+
+            ordered.append(item)
+
+        extra = [it.item_code for i, it in enumerate(note_items) if i not in used]
+        if extra:
+            frappe.throw(
+                f"Validation Error on <a href='{invoice_link}'>Sales Invoice "
+                f"({invoice_doc.name})</a>:<br><br>"
+                f"<b>{note_type}</b> notes must mirror the original registered invoice "
+                f"line-by-line, but this note adds item(s) not on the original: "
+                f"<b>{', '.join(set(extra))}</b>. Remove the extra line(s) or create the "
+                f"adjustment against the correct invoice.",
+                title="EIMS Schema Error: Extra Note Line",
+            )
+
+        return ordered
 
     def _validate_payload_schema_rules(self, payload, invoice_doc):
         invoice_link = f"/app/sales-invoice/{invoice_doc.name}"

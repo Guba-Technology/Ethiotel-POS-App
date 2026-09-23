@@ -34,6 +34,7 @@
   "service_terminated",
   "terminated_on",
   "sms_config_tab",
+  "afro_message_configuration_section",
   "afro_base_url",
   "afro_token",
   "afro_from_id",
@@ -98,7 +99,8 @@
   {
    "fieldname": "last_document_number",
    "fieldtype": "Int",
-   "label": "Last Document Number"
+   "label": "Last Document Number",
+   "read_only": 1
   },
   {
    "description": "Default Sales Taxes and Charges Template applied to POS invoices when no template is chosen at check-in or set on the POS Profile.",
@@ -154,7 +156,7 @@
   },
   {
    "default": "0",
-   "description": "Falls back to a live MoR /v1/verify lookup for IRNs not found in this system. Uses the seller's credentials; recommended only for dedicated installations.",
+   "description": "If IRN not found locally, verify it from the MoR System (live verification)",
    "fieldname": "remote_verify_from_mor",
    "fieldtype": "Check",
    "label": "Query MoR When Not Found Locally"
@@ -166,7 +168,7 @@
   },
   {
    "default": "0",
-   "description": "When ticked, further EIRMS registrations are blocked (Directive Art 8). Export your data before purging; use eims.data_management.terminate_service via the terminal/Server Script.",
+   "description": "When ticked, further EIRMS registrations are blocked. Export your data before purging. \u12a0\u1295\u1240\u1345 (8)",
    "fieldname": "service_terminated",
    "fieldtype": "Check",
    "label": "Service Terminated"
@@ -193,11 +195,11 @@
    "fieldtype": "Currency",
    "label": "Minimum Transaction Amount for Withholding Services"
   },
-    {
-     "fieldname": "sms_config_tab",
-     "fieldtype": "Tab Break",
-     "label": "SMS Config"
-    },
+  {
+   "fieldname": "sms_config_tab",
+   "fieldtype": "Tab Break",
+   "label": "SMS Config"
+  },
   {
    "default": "https://api.afromessage.com/api/send",
    "description": "Message API send endpoint. Point this at the sandbox base URL to test without sending real SMS.",
@@ -224,7 +226,7 @@
    "label": "Sender Name (Optional)"
   },
   {
-   "description": "Optional callback/webhook URL AfroMessage calls with delivery status. Leave empty if unused.",
+   "description": "Optional callback/webhook URL calls with delivery status. Leave empty if unused.",
    "fieldname": "afro_callback",
    "fieldtype": "Data",
    "label": "Delivery Callback (Optional)"
@@ -234,14 +236,18 @@
    "fieldtype": "Link",
    "label": "Organization",
    "options": "Company"
+  },
+  {
+   "fieldname": "afro_message_configuration_section",
+   "fieldtype": "Section Break",
+   "label": "Afro Message Configuration"
   }
-
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-17 16:17:21.444908",
+ "modified": "2026-09-23 12:23:26.245895",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "EIMS Setting",

@@ -10,6 +10,7 @@ from frappe.utils import get_datetime
 
 from ethiotel_pos.eims_connector import EIMSConnector, resolve_mor_payment_mode
 from ethiotel_pos.eims.payload import sum_withholding
+from ethiotel_pos.notify import _enqueue, send_withholding_notice
 
 
 class WithholdingReceipt(Document):
@@ -247,6 +248,9 @@ class WithholdingReceipt(Document):
                 self.response_log = json.dumps(res_data, indent=4)
                 self.save()
                 frappe.db.commit()
+
+                _enqueue(send_withholding_notice, receipt_name=self.name)
+
                 return {
                     "success": True,
                     "status": self.eims_status,
@@ -266,6 +270,9 @@ class WithholdingReceipt(Document):
                 self.response_log = (self.response_log or "") + "\n[auto-heal] duplicate-receipt response marked Active"
                 self.save()
                 frappe.db.commit()
+
+                _enqueue(send_withholding_notice, receipt_name=self.name)
+
                 return {
                     "success": True,
                     "status": self.eims_status,

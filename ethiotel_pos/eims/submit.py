@@ -169,7 +169,7 @@ class EIMSConnectorSubmit:
                         response_brief=response.text[:2000],
                     )
                     #notify
-                    _enqueue(send_registered_receipt, invoice_name=invoice_name, doctype=doctype)
+                    _enqueue(send_registered_receipt, invoice_name=invoice_name, doctype=doctype, note_type=note_type, ref_irn=note_ref_irn)
                     return {"status": "Transmitted", "message": f"Successfully registered. IRN: {irn}"}
 
                 # use the expected number from MoR when the first fails and retry the next.
@@ -230,7 +230,7 @@ class EIMSConnectorSubmit:
                             success=True,
                             description="Already registered with EIRMS (idempotent resend)",
                         )
-                        _enqueue(send_registered_receipt, invoice_name=invoice_name, doctype=doctype)
+                        _enqueue(send_registered_receipt, invoice_name=invoice_name, doctype=doctype, note_type=note_type, ref_irn=note_ref_irn)
                         return {"status": "Transmitted", "message": f"Already registered. IRN: {irn}"}
 
                 # Max 2 attempts reached or non-retryable error - fail with full context
@@ -726,7 +726,8 @@ class EIMSConnectorSubmit:
                         results_map[doc.name] = {"status": "Transmitted", "message": f"Successfully registered. IRN: {irn}"}
                         successes += 1
                         logs.append(f"[{doc.name}] Success -> IRN: {irn} (DocNum: {assigned_num}, via single-invoice fallback)")
-                        _enqueue(send_registered_receipt, invoice_name=doc.name, doctype="Sales Invoice")
+                        _ft_note_type, _ft_ref_irn = self._resolve_note_override(doc)
+                        _enqueue(send_registered_receipt, invoice_name=doc.name, doctype="Sales Invoice", note_type=_ft_note_type, ref_irn=_ft_ref_irn)
                     else:
                         conversation_id = res_json.get("conversationId") if isinstance(res_json, dict) else None
                         frappe.db.set_value("Sales Invoice", doc.name, {
@@ -888,7 +889,8 @@ class EIMSConnectorSubmit:
                         successes += 1
                         logs.append(f"[{doc.name}] Success -> IRN: {irn} (DocNum: {assigned_num})")
                         last_committed_irn = irn
-                        _enqueue(send_registered_receipt, invoice_name=doc.name, doctype="Sales Invoice")
+                        _ft_note_type, _ft_ref_irn = self._resolve_note_override(doc)
+                        _enqueue(send_registered_receipt, invoice_name=doc.name, doctype="Sales Invoice", note_type=_ft_note_type, ref_irn=_ft_ref_irn)
                     else:
                         rule_error = item.get("ruleError")
                         if rule_error:

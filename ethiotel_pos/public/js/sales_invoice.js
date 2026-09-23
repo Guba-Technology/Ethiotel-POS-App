@@ -355,7 +355,7 @@ frappe.ui.form.on("Sales Invoice", {
 					fieldname: "cancellation_reasons",
 					label: __("Cancellation Reason"),
 					fieldtype: "Select",
-					options: ["Mistake", "Duplicate", "Fraudulent", "Change of Order", "Others"],
+					options: ["Duplicate", "Data entry mistake", "Order cancelled", "Goods not delivered or returned", "Commercial discount", "Calculation error"],
 					reqd: 1,
 				},
 				{ fieldname: "remark", label: __("Remark"), fieldtype: "Small Text" },

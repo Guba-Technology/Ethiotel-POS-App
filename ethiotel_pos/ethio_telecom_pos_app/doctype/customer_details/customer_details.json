@@ -38,13 +38,17 @@
   {
    "fieldname": "city",
    "fieldtype": "Data",
-   "label": "City"
+   "in_list_view": 1,
+   "label": "City",
+   "reqd": 1
   },
   {
    "fieldname": "id_type",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "ID Type",
-   "options": "NID\nKID\nSID\nWID\nPST\nDLS\nMRS"
+   "options": "NID\nKID\nSID\nWID\nPST\nDLS\nMRS",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_spfa",
@@ -53,7 +57,9 @@
   {
    "fieldname": "woreda",
    "fieldtype": "Data",
-   "label": "Woreda"
+   "in_list_view": 1,
+   "label": "Woreda",
+   "reqd": 1
   },
   {
    "fieldname": "house_number",
@@ -88,7 +94,9 @@
   {
    "fieldname": "region",
    "fieldtype": "Data",
-   "label": "Region"
+   "in_list_view": 1,
+   "label": "Region",
+   "reqd": 1
   },
   {
    "fieldname": "zone",
@@ -134,7 +142,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-02 11:37:39.698285",
+ "modified": "2026-09-21 09:40:09.425833",
  "modified_by": "Administrator",
  "module": "Ethio Telecom POS App",
  "name": "Customer Details",
