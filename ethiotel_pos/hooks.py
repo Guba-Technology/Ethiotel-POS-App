@@ -17,7 +17,7 @@ required_apps = ["erpnext"]
 fixtures = [
     {
         "doctype": "Custom Field",
-        "filters": [
+        "filters": [["dt", "in", ["Sales Invoice", "POS Invoice"]],
             [
                 "name",
                 "in",
