@@ -1,6 +1,10 @@
 // Copyright (c) 2020, Youssef Restom and contributors
 // For license information, please see license.txt
 
+// Running totals used while the closing form is built from the shift data.
+let shift_change_total = 0;
+let shift_invoice_names = new Set();
+
 frappe.ui.form.on("POS Closing Shift", {
 	onload: function (frm) {
 		frm.set_query("pos_profile", function (doc) {
@@ -66,7 +70,7 @@ frappe.ui.form.on("POS Closing Shift", {
 
 	get_pos_payments(frm) {
 		frappe.call({
-			method: "ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.pos_closing_shift.get_payments_entries",
+			method: "ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.pos_closing_shift.get_shift_payment_entries",
 			args: {
 				pos_opening_shift: frm.doc.pos_opening_shift,
 			},
@@ -92,12 +96,18 @@ async function set_form_data(data, frm) {
 		return;
 	}
 
+	shift_change_total = 0;
+	shift_invoice_names = new Set();
+
 	for (const d of data) {
 		add_to_pos_transaction(d, frm);
 		const conversion_rate = get_conversion_rate(d);
 		frm.doc.grand_total += get_base_value(d, "grand_total", "base_grand_total", conversion_rate);
 		frm.doc.net_total += get_base_value(d, "net_total", "base_net_total", conversion_rate);
 		frm.doc.total_quantity += flt(d.total_qty);
+		if (d.name) {
+			shift_invoice_names.add(d.name);
+		}
 		await add_to_payments(d, frm, conversion_rate);
 		add_to_taxes(d, frm, conversion_rate);
 	}
@@ -144,44 +154,100 @@ function add_to_pos_payments(d, frm) {
 	frm.add_child("pos_payments", child);
 }
 
-async function add_to_payments(d, frm, conversion_rate) {
+// Invoice payment rows carry the gross tender, so the change handed back has to be
+// netted out exactly once, from the row that overpaid - the largest tender.
+function get_netted_payments(d, conversion_rate) {
 	const payments = Array.isArray(d.payments) ? d.payments : [];
-	const cash_mode_of_payment = await get_cash_mode_of_payment(frm);
+	const rows = payments.map((p) => ({
+		mode_of_payment: p.mode_of_payment,
+		amount: get_base_value(p, "amount", "base_amount", conversion_rate),
+	}));
 
-	payments.forEach((p) => {
+	if (!rows.length) {
+		return rows;
+	}
+
+	const change = get_base_value(d, "change_amount", "base_change_amount", conversion_rate);
+	if (!change) {
+		return rows;
+	}
+
+	let target_index = -1;
+	rows.forEach((row, index) => {
+		if (flt(row.amount) <= 0) {
+			return;
+		}
+		if (target_index === -1 || flt(row.amount) > flt(rows[target_index].amount)) {
+			target_index = index;
+		}
+	});
+
+	if (target_index !== -1) {
+		rows[target_index].amount -= change;
+	}
+
+	return rows;
+}
+
+async function add_to_payments(d, frm, conversion_rate) {
+	get_netted_payments(d, conversion_rate).forEach((p) => {
 		const payment = frm.doc.payment_reconciliation.find(
 			(pay) => pay.mode_of_payment === p.mode_of_payment,
 		);
 		if (payment) {
-			let amount = get_base_value(p, "amount", "base_amount", conversion_rate);
-
-			if (payment.mode_of_payment === cash_mode_of_payment) {
-				amount -= get_base_value(d, "change_amount", "base_change_amount", conversion_rate);
-			}
-			payment.expected_amount += flt(amount);
+			payment.expected_amount += flt(p.amount);
 		} else {
 			frm.add_child("payment_reconciliation", {
 				mode_of_payment: p.mode_of_payment,
 				opening_amount: 0,
-				expected_amount: get_base_value(p, "amount", "base_amount", conversion_rate),
+				expected_amount: flt(p.amount),
 			});
 		}
 	});
+
+	shift_change_total += get_base_value(d, "change_amount", "base_change_amount", conversion_rate);
+}
+
+function get_reference_base_amount(r) {
+	if (r.allocated_amount_in_company_currency !== undefined && r.allocated_amount_in_company_currency !== null) {
+		return flt(r.allocated_amount_in_company_currency);
+	}
+	if (r.base_allocated_amount !== undefined && r.base_allocated_amount !== null) {
+		return flt(r.base_allocated_amount);
+	}
+	return flt(r.allocated_amount) * flt(r.exchange_rate || 1);
 }
 
 function add_pos_payment_to_payments(p, frm) {
+	// Tenders already recorded on this shift's invoices must not be counted again.
+	const shift_allocated = (p.references || [])
+		.filter((r) => shift_invoice_names.has(r.reference_name))
+		.reduce((total, r) => total + Math.abs(get_reference_base_amount(r)), 0);
+
+	let amount = Math.max(0, Math.abs(get_base_value(p, "paid_amount", "base_paid_amount")) - shift_allocated);
+	const is_pay = p.payment_type === "Pay";
+
+	if (is_pay) {
+		// Change handed back for this shift is already netted out of the invoice
+		// tender, so only a refund beyond that reduces the drawer.
+		const covered_change = Math.min(shift_change_total, amount);
+		shift_change_total = Math.max(0, shift_change_total - amount);
+		amount -= covered_change;
+	}
+
+	const signed_amount = (is_pay ? -1 : 1) * flt(amount);
+	if (!signed_amount) {
+		return;
+	}
+
 	const payment = frm.doc.payment_reconciliation.find((pay) => pay.mode_of_payment === p.mode_of_payment);
 	if (payment) {
-		let amount = Math.abs(get_base_value(p, "paid_amount", "base_paid_amount"));
-		const multiplier = p.payment_type === "Pay" ? -1 : 1;
-		payment.expected_amount += flt(multiplier * amount);
+		payment.expected_amount += signed_amount;
 	} else {
 		frm.add_child("payment_reconciliation", {
 			mode_of_payment: p.mode_of_payment,
 			opening_amount: 0,
-			expected_amount:
-				Math.abs(get_base_value(p, "paid_amount", "base_paid_amount")) *
-				(p.payment_type === "Pay" ? -1 : 1),
+			expected_amount: signed_amount,
 		});
 	}
 }
@@ -209,6 +275,8 @@ function reset_values(frm) {
 	frm.set_value("grand_total", 0);
 	frm.set_value("net_total", 0);
 	frm.set_value("total_quantity", 0);
+	shift_change_total = 0;
+	shift_invoice_names = new Set();
 }
 
 function refresh_fields(frm) {

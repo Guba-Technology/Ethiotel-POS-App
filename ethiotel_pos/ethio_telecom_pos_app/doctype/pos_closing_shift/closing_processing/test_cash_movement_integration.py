@@ -24,6 +24,9 @@ class DummyClosingShift:
 
 
 class TestClosingShiftCashMovementIntegration(unittest.TestCase):
+    @patch(
+        "ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.creation.get_payment_entry_references"
+    )
     @patch("ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.creation.get_payments_entries")
     @patch("ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.creation.get_pos_invoices")
     @patch(
@@ -36,10 +39,12 @@ class TestClosingShiftCashMovementIntegration(unittest.TestCase):
         mock_submit_printed_invoices,
         mock_get_pos_invoices,
         mock_get_payments_entries,
+        mock_get_payment_entry_references,
     ):
         mock_submit_printed_invoices.return_value = []
         mock_get_pos_invoices.return_value = []
         mock_get_payments_entries.return_value = []
+        mock_get_payment_entry_references.return_value = {}
         mock_frappe.get_cached_value.return_value = "USD"
         mock_frappe.get_value.return_value = "Cash"
         mock_frappe.get_all.return_value = [{"amount": 20}]
@@ -68,6 +73,9 @@ class TestClosingShiftCashMovementIntegration(unittest.TestCase):
         self.assertEqual(row.opening_amount, 50)
         self.assertEqual(row.expected_amount, 30)
 
+    @patch(
+        "ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.overview.get_payment_entry_references"
+    )
     @patch("ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.overview.get_payments_entries")
     @patch("ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.overview.get_pos_invoices")
     @patch("ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.overview.frappe.get_all")
@@ -82,9 +90,11 @@ class TestClosingShiftCashMovementIntegration(unittest.TestCase):
         mock_get_all,
         mock_get_pos_invoices,
         mock_get_payments_entries,
+        mock_get_payment_entry_references,
     ):
         mock_get_pos_invoices.return_value = []
         mock_get_payments_entries.return_value = []
+        mock_get_payment_entry_references.return_value = {}
         mock_get_doc.return_value = SimpleNamespace(
             doctype="POS Opening Shift",
             name="POS-OPEN-1",

@@ -1,4 +1,5 @@
 import json
+import re
 import requests
 import frappe
 from datetime import datetime
@@ -10,9 +11,106 @@ from ethiotel_pos.notify import _enqueue, send_receipt_notice
 import base64
 from frappe.utils import money_in_words
 from frappe.utils import now_datetime
+
+
+def _invoice_payload_row(item):
+
+    return {
+        "InvoiceIRN": item.invoice_irn,
+        "PaymentCoverage": item.payment_coverage or "FULL",
+        # Amounts must match the registered invoice totals exactly — do NOT
+        # round them here.
+        "InvoicePaidAmount": float(
+            item.mor_collected_amount
+            if getattr(item, "mor_collected_amount", None) not in (None, "")
+            else item.receipt_paid_amount
+            if item.receipt_paid_amount not in (None, "")
+            else item.invoice_paid_amount
+            or 0.0
+        ),
+        "DiscountAmount": float(item.discount_amount or 0.0),
+        "RemainingAmount": float(item.remaining_amount or 0.0),
+        "TotalAmount": float(item.total_amount or 0.0),
+    }
+
+
+def _cumulative_paid_amount(sales_invoice, exclude_receipt=None, current_allocation=0.0,
+                            field=None):
+    """Total collected for an invoice across its receipts.
+
+    With `field=None` (the MoR basis) a FULL receipt contributes its whole
+    registered total, because that is what MoR was told it collected. With an
+    explicit `field` the named column is summed literally, which is what the
+    collectible view needs: the buyer's own cash, never the withheld tax.
+    """
+
+    rows = frappe.get_all(
+        "EIMS Invoice Receipt Reference",
+        filters={"sales_invoice": sales_invoice, "parenttype": "EIMS Invoice Receipt"},
+        fields=[
+            "parent",
+            "receipt_paid_amount",
+            "invoice_paid_amount",
+            "payment_coverage",
+            "total_amount",
+        ],
+    )
+
+    total = 0.0
+    for row in rows:
+        parent = frappe.db.get_value(
+            "EIMS Invoice Receipt", row.parent, ["docstatus", "eims_status"], as_dict=True
+        )
+        if not parent or parent.docstatus == 2:
+            continue
+        # Cancelled or failed receipts never actually collected anything.
+        if parent.eims_status == "Failed":
+            continue
+        if exclude_receipt and row.parent == exclude_receipt:
+            continue
+
+        if field is not None:
+            total += flt(row.get(field))
+        elif row.payment_coverage == "FULL":
+            total = flt(row.total_amount)
+        else:
+            # Fall back to the cumulative column for receipts written before
+            # receipt_paid_amount existed; they are the only row on their
+            # invoice at that point, so it is still their own amount.
+            own = flt(row.receipt_paid_amount) or flt(row.invoice_paid_amount)
+            total += own
+
+    return flt(total) + flt(current_allocation)
+
+
+def _next_receipt_number(base, sales_invoice):
+
+    existing = frappe.db.sql(
+        """
+        SELECT name FROM `tabEIMS Invoice Receipt`
+        WHERE receipt_number LIKE %s AND docstatus < 2
+        """,
+        (f"{base}%",),
+    )
+    if not existing:
+        return base
+
+    used = set()
+    for (name,) in existing:
+        number = frappe.db.get_value("EIMS Invoice Receipt", name, "receipt_number")
+        suffix = (number or "").removeprefix(base).lstrip("-")
+        if suffix.isdigit():
+            used.add(int(suffix))
+
+    index = 1
+    while index in used:
+        index += 1
+    return f"{base}-{index}"
+
+
 class EIMSInvoiceReceipt(Document):
     def validate(self):
-        
+
         if self.mode_of_payment and not resolve_mor_payment_mode(self.mode_of_payment):
             frappe.throw(_(
                 "Invalid Mode of Payment. Must be one of: CASH, CHEQUE, CPO, "
@@ -20,7 +118,7 @@ class EIMSInvoiceReceipt(Document):
             ))
 
     def before_save(self):
-   
+
         # if self.eims_status == "Active" and not self.is_new():
         #     existing_status = frappe.db.get_value("EIMS Invoice Receipt", self.name, "eims_status")
         #     if existing_status == "Active":
@@ -36,11 +134,11 @@ class EIMSInvoiceReceipt(Document):
         """Helper to get the active default row from the child table"""
         if not doc.client_data_list:
             frappe.throw("No client configuration found in EIMS Settings.")
-            
+
         for row in doc.client_data_list:
             if row.is_default == 1:
                 return frappe.get_doc(row.doctype, row.name)
-                
+
         frappe.throw("No default configuration row selected in EIMS Settings.")
     @frappe.whitelist()
     def fetch_payment_entry_details(self):
@@ -66,13 +164,11 @@ class EIMSInvoiceReceipt(Document):
         self.source_system_no = default_client.system_number
 
         self.invoices_covered = []
-        # MoR validates receipt amounts against the EXACT totals stored at
-        # registration time — those can carry sub-cent decimals (VAT
-        # division), while Payment Entry reference amounts are rounded to
-        # currency precision. Sending the rounded figures triggers
-        # "Invoice total amount mismatch". Always use the registered value.
+        this_collected = 0.0
+
         from ethiotel_pos.ethio_telecom_pos_app.page.ethiotel_pos.ethiotel_pos import (
             _mor_registered_total,
+            _mor_withholding,
         )
 
         for ref in pe.references:
@@ -83,24 +179,68 @@ class EIMSInvoiceReceipt(Document):
 
                 self.eims_rrn = inv_doc.custom_irn
                 self.receipt_counter = inv_doc.custom_document_number
-                coverage = "FULL" if flt(ref.allocated_amount) >= flt(ref.total_amount) else "PARTIAL"
                 exact_total = _mor_registered_total(inv_doc)
+
+
+                allocated = flt(ref.allocated_amount)
+                # Cumulative CASH collected for this invoice - the buyer's own
+                # payments, excluding the withheld tax. This is the basis for
+                # the collectible view, and must not be confused with the MoR
+                # basis (`invoice_paid_amount`), which on a discharging first
+                # receipt also carries the withheld tax and so overshoots it.
+                cumulative_cash = _cumulative_paid_amount(
+                    inv_doc.name, self.name, allocated, field="receipt_paid_amount"
+                )
+                paid_to_date = _cumulative_paid_amount(
+                    inv_doc.name, self.name, allocated
+                )
+
+                withheld = flt(_mor_withholding(inv_doc))
+                collectible = max(flt(exact_total) - withheld, 0.0)
+                # What earlier receipts already collected for this invoice.
+                prior_paid = max(flt(paid_to_date) - flt(allocated), 0.0)
+                remaining = max(flt(exact_total) - flt(paid_to_date), 0.0)
+                collectible_remaining = max(collectible - flt(cumulative_cash), 0.0)
+
+                is_first = prior_paid <= 0.005
+                if is_first and withheld > 0 and remaining <= withheld:
+                    # First receipt, withheld-tax invoice, fully paid: declare the
+                    # whole registered total so it reads as settled.
+                    mor_paid = exact_total
+                    remaining = 0.0
+                    coverage = "FULL"
+                elif is_first and remaining <= 0:
+                    mor_paid = paid_to_date
+                    coverage = "FULL"
+
+                else:
+
+                    mor_paid = allocated
+                    coverage = "PARTIAL"
+                this_collected += allocated
+
                 self.append("invoices_covered", {
                     "sales_invoice": ref.reference_name,
                     "invoice_irn": inv_doc.custom_irn,
                     "payment_coverage": coverage,
-                    "invoice_paid_amount": exact_total if coverage == "FULL" else ref.allocated_amount,
+
+                    "invoice_paid_amount": mor_paid,
+
+                    "receipt_paid_amount": allocated,
+                    "mor_collected_amount": mor_paid,
                     "discount_amount": float(inv_doc.discount_amount or 0.0),
-                    "remaining_amount": 0.0 if coverage == "FULL" else ref.outstanding_amount,
+                    "remaining_amount": remaining,
                     "total_amount": exact_total,
                     "taxable_amount": float(inv_doc.net_total or 0.0),
+
+                    "withheld_amount": withheld,
+                    "collectible_amount": collectible,
+                    "collectible_remaining_amount": collectible_remaining,
+                    "collectible_coverage": "FULL" if collectible_remaining <= 0 else "PARTIAL",
                 })
 
-        # Keep the receipt-level collected amount consistent with the exact
-        # rows above instead of the rounded PE paid_amount.
-        self.collected_amount = flt(
-            sum(flt(row.invoice_paid_amount) for row in self.invoices_covered)
-        )
+
+        self.collected_amount = this_collected
 
     @frappe.whitelist()
     def trigger_remote_receipt_generation(self):
@@ -109,12 +249,12 @@ class EIMSInvoiceReceipt(Document):
 
         self.fetch_payment_entry_details()
         connector = EIMSConnector()
-        
+
         try:
             token = connector.get_valid_token()
             base_url = connector.settings.base_url.strip().replace('"', '').replace("'", "").rstrip('/')
             url = f"{base_url}/v1/receipt/sales"
-            
+
             headers = {
                 "Authorization": f"Bearer {token}",
                 "apikey": connector.settings.get_password("api_key"),
@@ -123,23 +263,14 @@ class EIMSInvoiceReceipt(Document):
             }
 
             invoice_payload = []
+            mor_collected_total = 0.0
             for item in self.invoices_covered:
                 # MoR rejects the receipt with NOT_ACCEPTABLE when numeric
                 # fields arrive as null — always send numbers.
-                invoice_payload.append({
-                    "InvoiceIRN": item.invoice_irn,
-                    "PaymentCoverage": item.payment_coverage or "FULL",
-                    # Amounts must match the registered invoice totals
-                    # exactly — do NOT round them here.
-                    "InvoicePaidAmount": float(item.invoice_paid_amount or 0.0),
-                    "DiscountAmount": float(item.discount_amount or 0.0),
-                    "RemainingAmount": float(item.remaining_amount or 0.0),
-                    "TotalAmount": float(item.total_amount or 0.0)
-                })
+                row = _invoice_payload_row(item)
+                mor_collected_total += row["InvoicePaidAmount"]
+                invoice_payload.append(row)
 
-            # ReceiptDate in the format MoR expects (ISO-8601 with
-            # milliseconds and timezone offset, e.g.
-            # 2026-08-21T10:00:00.123+03:00).
             receipt_date_str = datetime.now().astimezone().isoformat(timespec="milliseconds")
 
             payload_data = json.dumps({
@@ -151,7 +282,7 @@ class EIMSInvoiceReceipt(Document):
                 "SourceSystemType": self.source_system_type,
                 "SourceSystemNumber": self.source_system_no,
                 "ReceiptCurrency": self.currency or "ETB",
-                "CollectedAmount": float(self.collected_amount or 0.0),
+                "CollectedAmount": float(mor_collected_total or 0.0),
                 "SellerTIN": self.seller_tin,
                 "Invoices": invoice_payload,
                 "TransactionDetails": {
@@ -176,7 +307,7 @@ class EIMSInvoiceReceipt(Document):
             if response.status_code == 200 and res_data.get("statusCode") == 200:
                 body = res_data.get("body", {})
                 api_status = body.get("status")
-                
+
                 if api_status == "A":
                     self.eims_status = "Active"
                 else:
@@ -186,17 +317,14 @@ class EIMSInvoiceReceipt(Document):
                 self.returned_rnn = body.get("rrn") or ""
                 self.qr_code_base64 = body.get("qr") or body.get("signedQR") or body.get("qrCode") or self.qr_code_base64
 
-                # Persist the returned RNN on every covered Sales Invoice —
-                # MoR does not support duplicate receipt generation, so any
-                # later re-fetch must look the receipt up BY RNN instead of
-                # re-submitting.
+
                 for row in self.invoices_covered or []:
                     if row.sales_invoice:
                         frappe.db.set_value(
                             "Sales Invoice", row.sales_invoice, "custom_mor_rrn", self.returned_rnn
                         )
                 self.response_log = json.dumps(res_data, indent=4)
-                
+
                 self.save()
                 frappe.db.commit()
 
@@ -210,16 +338,13 @@ class EIMSInvoiceReceipt(Document):
                 }
             else:
                 self.response_log = json.dumps(res_data, indent=4)
-                self.save()
-                frappe.db.commit()
                 detail = json.dumps(res_data, indent=2)
 
-                # Idempotent duplicate-receipt healing: MoR rejects a retry
-                # with "Receipt generated for the Invoice IRN given" when a
-                # receipt ALREADY exists remotely (a previous attempt reached
-                # MoR but its response was lost locally). Retrying would fail
-                # forever — mark this receipt Active instead.
-                if "Receipt generated for the Invoice IRN given" in detail:
+
+                is_duplicate = re.search(
+                    r"(?<!Partial )Receipt generated for the Invoice IRN given", detail
+                )
+                if is_duplicate:
                     if self.eims_status != "Active":
                         self.eims_status = "Active"
                         self.response_log = (
@@ -237,8 +362,17 @@ class EIMSInvoiceReceipt(Document):
                         "html": self.compile_receipt_html(),
                     }
 
+
+                if self.eims_status != "Failed":
+                    self.eims_status = "Failed"
+                    self.response_log = f"{self.response_log or ''}\n[rejected by MoR]"
+
+                self.save()
+                frappe.db.commit()
+
                 return {
                     "success": False,
+                    "status": self.eims_status,
                     "message": f"Error {response.status_code}: {detail}",
                     "html": None
                 }
@@ -275,8 +409,8 @@ class EIMSInvoiceReceipt(Document):
         seller_tin = getattr(self, "seller_tin", None) or getattr(eims_settings, "seller_tin", "0075951845")
         seller_vat_no = getattr(self, "seller_vat_no", None) or (company_doc.tax_id if company_doc else "43256663343256663322")
         seller_phone = getattr(self, "seller_phone", None) or (company_doc.phone_no if company_doc else "0923525754")
-        source_system_no = getattr(self, "source_system_no", None) or getattr(eims_settings, "system_number", "FF14E23B6A")
-        
+        source_system_no = getattr(self, "source_system_no", None) or getattr(eims_settings, "default_system_number", None) or "FF14E23B6A"
+
         # Explicit broken-down address layout keys matching sample document
         seller_city = getattr(self, "seller_city", "Addis Ababa")
         seller_subcity = getattr(self, "seller_subcity", "N/A")
@@ -359,26 +493,26 @@ class EIMSInvoiceReceipt(Document):
                 source_doctype = "POS Invoice"
             if si_name:
                 si_doc = frappe.get_doc(source_doctype, si_name)
-                
+
                 # Extract missing customer metadata directly from source invoice
                 if not getattr(self, "party_tin", None):
                     customer_tin = getattr(si_doc, "tax_id", customer_tin)
                 if not getattr(self, "party_vat_no", None):
                     customer_vat_no = getattr(si_doc, "customer_vat_no", customer_vat_no)
-                
+
                 # Extract address components from source invoice if available
                 customer_city = getattr(si_doc, "customer_city", customer_city)
                 customer_subcity = getattr(si_doc, "customer_subcity", customer_subcity)
                 customer_woreda = getattr(si_doc, "customer_woreda", customer_woreda)
                 customer_kebele = getattr(si_doc, "customer_kebele", customer_kebele)
                 customer_hno = getattr(si_doc, "customer_hno", customer_hno)
-                
+
                 # Gather totals exactly without reprocessing raw division formulas
                 if taxable_total == 0.0:
                     taxable_total = float(getattr(si_doc, "taxable_amount", 0.0) or getattr(si_doc, "base_net_total", 0.0) or 0.0)
                 if vat_amount == 0.0:
                     vat_amount = float(getattr(si_doc, "total_taxes_and_charges", 0.0) or 0.0)
-                
+
                 for item in si_doc.items:
                     item_desc = item.description or item.item_name or item.item_code
                     nature = "goods" if item.actual_qty > 0 else "services"
@@ -388,11 +522,11 @@ class EIMSInvoiceReceipt(Document):
                     item_tax_code = "VAT15"
                     if hasattr(item, "item_tax_template") and item.item_tax_template:
                         item_tax_code = item.item_tax_template.split(" - ")[0]
-                    
+
                     item_excise = float(getattr(item, "excise_tax", 0.0))
                     item_total = item.net_amount
                     total_amounts += item_total
-                    
+
                     invoice_rows += f"""
                     <tr>
                         <td style="text-align:center;">{idx}</td>
@@ -408,7 +542,7 @@ class EIMSInvoiceReceipt(Document):
                     """
                     idx += 1
 
-      
+
 
         if total_vat_taxable == 0.0:
             total_vat_taxable = taxable_total
@@ -435,7 +569,7 @@ class EIMSInvoiceReceipt(Document):
                 @media print {{ .inline-print-btn {{ display: none !important; }} }}
             </style>
 
-            
+
 
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
                 <div style="width: 120px;">
@@ -553,7 +687,7 @@ class EIMSInvoiceReceipt(Document):
                     <td style="text-align: right; width: 50%; vertical-align: bottom;"><strong>ፊርማ / Signature:</strong> ______________________</td>
                 </tr>
             </table>
-            
+
             <div style="text-align: center; font-size: 9px; color: #555; margin-top: 25px; border-top: 1px dashed #ccc; padding-top: 5px;">
                 Certified Official Document transmitted securely to Ministry of Revenues EIRMS system Hub endpoint.
             </div>

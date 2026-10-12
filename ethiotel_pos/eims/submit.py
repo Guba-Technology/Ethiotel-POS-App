@@ -10,6 +10,7 @@ from frappe.utils import get_datetime, now_datetime
 from .audit import log_audit
 from .constants import EIMS_MIN_BULK_SIZE
 from .logging_setup import eims_logger
+from .payload import _require_default_tax_row
 from .sanitize import redact_payload
 from ethiotel_pos.notify import _enqueue, send_registered_receipt
 
@@ -22,7 +23,7 @@ class EIMSConnectorSubmit:
         is a Sales Invoice, otherwise 'POS Invoice'. Sales Invoices and POS
         Invoices are separate EIMS registrations that share one document
         number source (EIMS Setting.last_document_number). but here withholding related
-        things are don in the sales invoice side. tasactions like b2b, b2g,or g2g are 
+        things are don in the sales invoice side. tasactions like b2b, b2g,or g2g are
         more likely being done in the salesss invoice side."""
         if frappe.db.exists("Sales Invoice", invoice_name):
             return "Sales Invoice"
@@ -147,7 +148,7 @@ class EIMSConnectorSubmit:
                         "custom_qr_code_url": qr_code_url,
                         "custom_eims_status": "Registered",
                         "custom_document_number": doc_num,
-                       
+
                         "custom_mor_total_value": invoice_payload["ValueDetails"]["TotalValue"],
                     }), update_modified=True)
 
@@ -175,7 +176,7 @@ class EIMSConnectorSubmit:
                 # use the expected number from MoR when the first fails and retry the next.
                 # self-healing code to recover from a lost response
                 expected_num = self._parse_expected_doc_num(response.text)
-                
+
                 # ER-GE-1 (Internal Server Error) -this late errore encountered from MoR system.
                 # I don't really know what it means but the issue was about document number.
                 # It often indicates document number mismatch
@@ -306,6 +307,8 @@ class EIMSConnectorSubmit:
         self._put_if_present(seller, "Locality", company.custom_locality)
 
         item_list = []
+        default_cfg = _require_default_tax_row()
+        default_code = (default_cfg.tax_code or "").strip()
         for idx, row in enumerate(doc.items, start=1):
             qty = float(row.quantity or 1)
             unit_price = float(row.unit_price or 0)
@@ -314,6 +317,16 @@ class EIMSConnectorSubmit:
             if pre_tax < 0:
                 frappe.throw(
                     f"Manual invoice line '{row.item_description}': pre-tax value cannot be negative."
+                )
+            # No hardcoded tax code: the line must carry an EIMS tax code or
+            # fall back to the single configured Default row.
+            line_code = (row.tax_code or default_code or "").strip()
+            if not line_code:
+                frappe.throw(
+                    f"Manual invoice line '{row.item_description or idx}': a valid "
+                    f"<b>Tax Code</b> is required. Set it on the line, or configure a "
+                    f"<b>Default</b> tax code on "
+                    f'<a href="/app/eims-setting">EIMS Setting &rarr; Account Config</a>.'
                 )
             tax_rate = float(row.tax_rate or 0)
             tax_amount = round(pre_tax * tax_rate / 100.0, 2)
@@ -325,7 +338,7 @@ class EIMSConnectorSubmit:
                 "Quantity": qty,
                 "UnitPrice": round(unit_price, 6),
                 "PreTaxValue": pre_tax,
-                "TaxCode": (row.tax_code or "VAT15").strip(),
+                "TaxCode": line_code,
                 "TaxAmount": tax_amount,
                 "Unit": "PCS",
                 "TotalLineAmount": round(pre_tax + tax_amount, 2),

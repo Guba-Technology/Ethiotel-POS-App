@@ -384,6 +384,94 @@ def send_cancellation_notice(invoice_name, irn, doctype="Sales Invoice"):
     return {"sent": sent_any, "channels": results}
 
 
+def _receipt_coverage_card(receipt, currency):
+    """Per-invoice payment coverage for the receipt email.
+
+    A partially paid invoice is settled over several receipts, so the email
+    must state what THIS payment collected, what the invoice has been paid
+    to date, what is still outstanding, and whether it is settled."""
+    rows = receipt.get("invoices_covered") or []
+    if not rows:
+        return ""
+
+    body_rows = ""
+    for row in rows:
+        invoice_no = row.get("sales_invoice") or row.get("pos_invoice") or "-"
+        total = float(row.get("total_amount") or 0.0)
+        this_receipt = float(
+            row.get("receipt_paid_amount")
+            or row.get("invoice_paid_amount")
+            or 0.0
+        )
+        paid_to_date = float(row.get("invoice_paid_amount") or 0.0)
+        # Withheld tax is deducted by the buyer and remitted to the tax
+        # authority, so it is never payable to the seller and must not be
+        # reported to the customer as an outstanding balance.
+        withheld = float(row.get("withheld_amount") or 0.0)
+        collectible = float(row.get("collectible_amount") or 0.0) or max(
+            total - withheld, 0.0
+        )
+        remaining = float(
+            row.get("collectible_remaining_amount")
+            if row.get("collectible_remaining_amount") not in (None, "")
+            else row.get("remaining_amount")
+            or 0.0
+        )
+        coverage = (
+            row.get("collectible_coverage")
+            or row.get("payment_coverage")
+            or ""
+        ).upper()
+        if not coverage:
+            coverage = "FULL" if remaining <= 0 else "PARTIAL"
+
+        badge_bg = "#0a7d33" if coverage == "FULL" else "#b7791f"
+        body_rows += f"""
+        <tr>
+          <td style="padding:8px 10px;font-size:12px;border-bottom:1px solid #e9ecef;word-break:break-word;">{_e(invoice_no)}</td>
+          <td style="padding:8px 10px;font-size:12px;text-align:right;border-bottom:1px solid #e9ecef;white-space:nowrap;">{_e(frappe.utils.fmt_money(collectible, currency=currency))}</td>
+          <td style="padding:8px 10px;font-size:12px;text-align:right;border-bottom:1px solid #e9ecef;white-space:nowrap;">{_e(frappe.utils.fmt_money(this_receipt, currency=currency))}</td>
+          <td style="padding:8px 10px;font-size:12px;text-align:right;border-bottom:1px solid #e9ecef;white-space:nowrap;">{_e(frappe.utils.fmt_money(paid_to_date, currency=currency))}</td>
+          <td style="padding:8px 10px;font-size:12px;text-align:right;border-bottom:1px solid #e9ecef;white-space:nowrap;">{_e(frappe.utils.fmt_money(remaining, currency=currency))}</td>
+          <td style="padding:8px 10px;font-size:11px;text-align:center;border-bottom:1px solid #e9ecef;white-space:nowrap;">
+            <span style="display:inline-block;padding:2px 8px;border-radius:10px;background:{badge_bg};color:#ffffff;font-weight:bold;letter-spacing:0.5px;">{_e(coverage)}</span>
+          </td>
+        </tr>"""
+        if withheld:
+            body_rows += f"""
+        <tr>
+          <td colspan="6" style="padding:4px 10px 10px;font-size:10px;color:#8a6d3b;border-bottom:1px solid #e9ecef;">
+            Invoice total { _e(frappe.utils.fmt_money(total, currency=currency)) } includes
+            { _e(frappe.utils.fmt_money(withheld, currency=currency)) } of tax withheld,
+            which is remitted by you to the tax authority and is not payable to the seller.
+          </td>
+        </tr>"""
+
+    return f"""
+<p style="font-size:11px;color:#6a6d70;letter-spacing:1.5px;font-weight:bold;text-transform:uppercase;margin:18px 0 8px;">
+  Invoice payment coverage
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+       style="border:1px solid #e9ecef;border-collapse:collapse;margin:0 0 8px;">
+  <thead>
+    <tr style="background:#f8f9fa;">
+      <th style="padding:8px 10px;font-size:11px;text-align:left;color:#6c757d;border-bottom:1px solid #e9ecef;">Invoice</th>
+      <th style="padding:8px 10px;font-size:11px;text-align:right;color:#6c757d;border-bottom:1px solid #e9ecef;">Total</th>
+      <th style="padding:8px 10px;font-size:11px;text-align:right;color:#6c757d;border-bottom:1px solid #e9ecef;">This Receipt</th>
+      <th style="padding:8px 10px;font-size:11px;text-align:right;color:#6c757d;border-bottom:1px solid #e9ecef;">Paid to Date</th>
+      <th style="padding:8px 10px;font-size:11px;text-align:right;color:#6c757d;border-bottom:1px solid #e9ecef;">Remaining</th>
+      <th style="padding:8px 10px;font-size:11px;text-align:center;color:#6c757d;border-bottom:1px solid #e9ecef;">Status</th>
+    </tr>
+  </thead>
+  <tbody>{body_rows}</tbody>
+</table>
+<p style="font-size:11px;color:#6c757d;line-height:1.6;margin:0 0 6px;">
+  <b>PARTIAL</b> means part of the invoice is still outstanding and will be
+  settled by a later payment. <b>FULL</b> means the invoice is now fully paid.
+</p>
+""".strip()
+
+
 def _build_sales_receipt_email(receipt):
     org = receipt.get("collector_name") or "Ethio Telecom"
     amount = float(receipt.get("collected_amount") or 0.0)
@@ -391,11 +479,35 @@ def _build_sales_receipt_email(receipt):
     receipt_url = "{0}/invoice_receipt?rrn={1}".format(
         frappe.utils.get_url().rstrip("/"), receipt.get("returned_rnn") or receipt.get("eims_rrn") or ""
     )
+
+    covered = receipt.get("invoices_covered") or []
+    # Judge "part payment" against the collectible view. On the MoR
+    # (registered) basis a settled invoice still looks PARTIAL because the
+    # withheld tax is never paid to the seller.
+    def _is_partial_row(row):
+        coverage = (row.get("collectible_coverage") or "").upper()
+        if not coverage:
+            coverage = (row.get("payment_coverage") or "").upper()
+        if coverage:
+            return coverage != "FULL"
+        remaining = row.get("collectible_remaining_amount")
+        if remaining in (None, ""):
+            remaining = row.get("remaining_amount") or 0.0
+        return float(remaining) > 0
+
+    is_partial = any(_is_partial_row(row) for row in covered)
+    headline = (
+        "This is a part payment. The remaining balance is shown below."
+        if is_partial and covered
+        else "Your payment has been recorded and registered with the Ministry of Revenue."
+    )
+
     summary_rows = [
         ("Receipt Number", receipt.get("receipt_number") or "-"),
         ("MoR Reference (RRN)", receipt.get("returned_rnn") or receipt.get("eims_rrn") or "-"),
         ("Payment Method", receipt.get("mode_of_payment") or "CASH"),
         ("Collected Amount", frappe.utils.fmt_money(amount, currency=currency)),
+        ("Payment Coverage", "PARTIAL" if is_partial and covered else "FULL"),
         ("Receipt Date", frappe.utils.format_datetime(receipt.get("receipt_date") or "")),
     ]
     body = f"""
@@ -405,9 +517,10 @@ def _build_sales_receipt_email(receipt):
 <h1 style="font-size:22px;color:#32363a;margin:0 0 14px;">Your payment has been received</h1>
 <div style="font-size:14px;color:#212529;line-height:1.6;">
   Your payment of <b>{_e(frappe.utils.fmt_money(amount, currency=currency))}</b>
-  has been recorded and registered with the Ministry of Revenue. Details are below.
+  has been recorded and registered with the Ministry of Revenue. {_e(headline)}
 </div>
 {_summary_card(summary_rows)}
+{_receipt_coverage_card(receipt, currency)}
 <p style="font-size:11px;color:#6a6d70;letter-spacing:1.5px;font-weight:bold;text-transform:uppercase;margin:18px 0 8px;">
   Verify this receipt with the Ministry of Revenue using the RRN above
 </p>
@@ -654,4 +767,3 @@ def send_sms(phone, text):
     except requests.exceptions.RequestException as e:
         frappe.log_error(f"EIMS SMS send failed (transport): {e}", "EIMS SMS")
         return {"sent": False, "reason": "transport_error"}
-   

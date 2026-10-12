@@ -8,6 +8,7 @@ from frappe.utils import flt
 from ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.utils import get_base_value
 from ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.data import (
     get_cashiers,
+    get_payment_entry_references,
     get_pos_invoices,
     get_payments_entries,
 )
@@ -90,3 +91,16 @@ class POSClosingShift(Document):
     @frappe.whitelist()
     def get_payment_reconciliation_details(self):
         return get_payment_reconciliation_details(self)
+
+
+@frappe.whitelist()
+def get_shift_payment_entries(pos_opening_shift):
+    """Return the shift payment entries with their references for the closing form."""
+
+    entries = get_payments_entries(pos_opening_shift)
+    references_by_entry = get_payment_entry_references([entry.get("name") for entry in entries])
+
+    for entry in entries:
+        entry["references"] = references_by_entry.get(entry.get("name")) or []
+
+    return entries

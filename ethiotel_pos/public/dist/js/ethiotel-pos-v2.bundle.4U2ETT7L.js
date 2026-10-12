@@ -685,44 +685,48 @@
             fieldname: "balance_details",
             fieldtype: "Table",
             label: __("Opening Balance"),
+            options: "POS Opening Entry Detail",
             cannot_add_rows: false,
             in_place_edit: true,
             reqd: 1,
             data: [],
             fields: [
-              { fieldname: "mode_of_payment", fieldtype: "Select", in_list_view: 1, label: __("Mode of Payment"), options: [], reqd: 1 },
-              { fieldname: "opening_amount", fieldtype: "Currency", in_list_view: 1, label: __("Opening Amount"), default: 0 }
+              { fieldname: "mode_of_payment", fieldtype: "Link", options: "Mode of Payment", in_list_view: 1, label: __("Mode of Payment"), reqd: 1 },
+              { fieldname: "opening_amount", fieldtype: "Currency", in_list_view: 1, label: __("Opening Amount"), reqd: 1, default: 0 }
             ]
           }
         ],
         primary_action_label: __("Open"),
         primary_action: function(values) {
-          const balance = (values.balance_details || []).filter((d) => d.mode_of_payment);
+          const balance = read_opening_balances(dialog, values);
           if (!balance.length) {
             frappe.show_alert({ message: __("Add at least one mode of payment."), indicator: "orange" });
             return;
           }
-          frappe.call({
-            method: "ethiotel_pos.ethio_telecom_pos_app.page.ethiotel_pos.ethiotel_pos.create_opening_voucher",
-            args: { pos_profile: values.pos_profile, company: values.company, balance_details: balance, taxes_and_charges: values.taxes_and_charges },
-            freeze: true
-          }).then((r) => {
-            if (!r.exc) {
-              const doc = r.message;
-              me.pos_opening = doc.name;
-              me.pos_profile = doc.pos_profile;
-              me.company = doc.company;
-              me.pos_opening_time = doc.period_start_date;
-              me.tax_template = values.taxes_and_charges || null;
-              dialog.hide();
-              me.show_shift_chip();
-              me.load_profile().then(() => {
-                me.workspaces.show("sale");
-              });
-            }
-          });
+          submit_opening_voucher(values, balance);
         }
       });
+      function submit_opening_voucher(values, balance) {
+        frappe.call({
+          method: "ethiotel_pos.ethio_telecom_pos_app.page.ethiotel_pos.ethiotel_pos.create_opening_voucher",
+          args: { pos_profile: values.pos_profile, company: values.company, balance_details: balance, taxes_and_charges: values.taxes_and_charges },
+          freeze: true
+        }).then((r) => {
+          if (!r.exc) {
+            const doc = r.message;
+            me.pos_opening = doc.name;
+            me.pos_profile = doc.pos_profile;
+            me.company = doc.company;
+            me.pos_opening_time = doc.period_start_date;
+            me.tax_template = values.taxes_and_charges || null;
+            dialog.hide();
+            me.show_shift_chip();
+            me.load_profile().then(() => {
+              me.workspaces.show("sale");
+            });
+          }
+        });
+      }
       function fetch_payments() {
         const profile = dialog.fields_dict.pos_profile.get_value();
         if (!profile)
@@ -733,15 +737,18 @@
           silent: true
         }).then((r) => {
           const modes = r.message || [];
-          const mode_field = dialog.fields_dict.balance_details.df.fields.find((f) => f.fieldname === "mode_of_payment");
-          if (mode_field) {
-            mode_field.options = modes;
-          }
-          dialog.fields_dict.balance_details.df.data = modes.map((mode) => ({
+          const grid = dialog.fields_dict.balance_details;
+          const typed = {};
+          (grid.df.data || []).forEach((row) => {
+            if (row.mode_of_payment) {
+              typed[row.mode_of_payment] = flt(row.opening_amount);
+            }
+          });
+          grid.df.data = modes.map((mode) => ({
             mode_of_payment: mode,
-            opening_amount: 0
+            opening_amount: typed[mode] || 0
           }));
-          dialog.fields_dict.balance_details.grid.refresh();
+          grid.grid.refresh();
           frappe.db.get_doc("POS Profile", profile).then((doc) => {
             if (!dialog.fields_dict.taxes_and_charges.get_value() && doc.taxes_and_charges) {
               dialog.set_value("taxes_and_charges", doc.taxes_and_charges);
@@ -749,6 +756,12 @@
           });
         });
       }
+      function read_opening_balances(dialog2, values) {
+        const grid = dialog2.fields_dict.balance_details;
+        const rows = grid && grid.df && grid.df.data || values.balance_details || [];
+        return rows.filter((d) => d && d.mode_of_payment).map((d) => ({ mode_of_payment: d.mode_of_payment, opening_amount: flt(d.opening_amount || d.amount) }));
+      }
+      dialog.fields_dict.pos_profile.get_value() && fetch_payments();
       dialog.show();
     }
     close_shift() {
@@ -2425,15 +2438,17 @@
         $list.html(`<div class="etv2-empty">${__("No payments today.")}</div>`);
         return;
       }
-      const max = Math.max(...payments.map((p) => p.amount), 1);
+      const max = Math.max(...payments.map((p) => flt(p.amount || 0) + flt(p.opening_amount || 0)), 1);
       $list.html(
         payments.map((p) => `
 				<div class="etv2-list-row">
 					<span class="etv2-list-row-label">${frappe.utils.escape_html(p.mode_of_payment)}</span>
 					<div class="etv2-list-bar-wrap">
-						<div class="etv2-list-bar"><div class="etv2-list-bar-fill" style="width:${Math.max(p.amount / max * 100, 4)}%"></div></div>
+						<div class="etv2-list-bar"><div class="etv2-list-bar-fill" style="width:${Math.max(flt(p.amount) / max * 100, 4)}%"></div></div>
 					</div>
-					<span class="etv2-list-row-amount">${format_currency(p.amount)}</span>
+					<span class="etv2-list-row-amount">${format_currency(flt(p.amount))}</span>
+					${flt(p.opening_amount) ? `<span class="etv2-list-row-sub">${__("Opening")}: ${format_currency(flt(p.opening_amount))}</span>` : ""}
+					${flt(p.expected_amount) ? `<span class="etv2-list-row-sub">${__("Expected")}: ${format_currency(flt(p.expected_amount))}</span>` : ""}
 				</div>`).join("")
       );
     }
@@ -3646,4 +3661,4 @@
     }
   };
 })();
-//# sourceMappingURL=ethiotel-pos-v2.bundle.U2NI4Q5O.js.map
+//# sourceMappingURL=ethiotel-pos-v2.bundle.4U2ETT7L.js.map

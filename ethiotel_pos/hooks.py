@@ -253,22 +253,22 @@ fixtures = [
 # 	}
 # ]
 doc_events = {
-    "Sales Invoice": {
-        "validate": "ethiotel_pos.api.invoice.validate",
-        "before_submit": "ethiotel_pos.api.invoice.before_submit",
-        "before_cancel": "ethiotel_pos.api.invoice.before_cancel",
-        "on_cancel": "ethiotel_pos.api.invoice.on_cancel",
-    },
-    "POS Invoice": {
-        "validate": "ethiotel_pos.api.invoice.validate",
-        "before_submit": "ethiotel_pos.api.invoice.before_submit",
-        "before_cancel": "ethiotel_pos.api.invoice.before_cancel",
-        "on_cancel": "ethiotel_pos.api.invoice.on_cancel",
-    },
-    "Customer": {
-        "validate": "ethiotel_pos.api.customer.validate",
-        "after_insert": "ethiotel_pos.api.customer.after_insert",
-    },
+    # "Sales Invoice": {
+    #     "validate": "ethiotel_pos.api.invoice.validate",
+    #     "before_submit": "ethiotel_pos.api.invoice.before_submit",
+    #     "before_cancel": "ethiotel_pos.api.invoice.before_cancel",
+    #     "on_cancel": "ethiotel_pos.api.invoice.on_cancel",
+    # },
+    # "POS Invoice": {
+    #     "validate": "ethiotel_pos.api.invoice.validate",
+    #     "before_submit": "ethiotel_pos.api.invoice.before_submit",
+    #     "before_cancel": "ethiotel_pos.api.invoice.before_cancel",
+    #     "on_cancel": "ethiotel_pos.api.invoice.on_cancel",
+    # },
+    # "Customer": {
+    #     "validate": "ethiotel_pos.api.customer.validate",
+    #     "after_insert": "ethiotel_pos.api.customer.after_insert",
+    # },
     # "Bin": {
     #     "after_insert": [
     #         "ethiotel_pos.ethiotel_pos.stock_realtime.publish_bin_stock_change",
@@ -279,18 +279,18 @@ doc_events = {
     #         "ethiotel_pos.api.item_fetchers.clear_stock_caches",
     #     ],
     # },
-    "Stock Ledger Entry": {
-        "after_insert": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
-        "on_cancel": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
-    },
-    "Serial No": {
-        "after_insert": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
-        "on_update": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
-    },
-    "Batch": {
-        "after_insert": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
-        "on_update": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
-    },
+    # "Stock Ledger Entry": {
+    #     "after_insert": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
+    #     "on_cancel": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
+    # },
+    # "Serial No": {
+    #     "after_insert": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
+    #     "on_update": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
+    # },
+    # "Batch": {
+    #     "after_insert": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
+    #     "on_update": "ethiotel_pos.api.item_fetchers.clear_stock_caches",
+    # },
 }
 # Includes in <head>
 # ------------------

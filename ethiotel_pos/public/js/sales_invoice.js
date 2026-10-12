@@ -161,6 +161,12 @@ frappe.ui.form.on("Sales Invoice", {
 			.etv2-si-total span{font-weight:700;color:#1e293b;font-variant-numeric:tabular-nums;font-size:12px;}
 			.etv2-si-total.is-grand{background:#f0fdf4;border-style:solid;border-color:#86efac;}
 			.etv2-si-total.is-grand span{font-size:13px;font-weight:800;color:#14532d;}
+			.etv2-si-total.is-wth{background:#fff7ed;border-style:solid;border-color:#fdba74;}
+			.etv2-si-total.is-wth label{color:#c2410c;}
+			.etv2-si-total.is-wth span{color:#9a3412;}
+			.etv2-si-row-wth{background:#fff7ed;}
+			.etv2-si-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#ffedd5;color:#9a3412;font-size:9px;font-weight:700;text-transform:none;white-space:nowrap;}
+			.etv2-si-note{margin-top:8px;padding:8px 10px;border-left:3px solid #fdba74;background:#fff7ed;border-radius:0 8px 8px 0;font-size:11px;line-height:1.45;color:#7c2d12;}
 			.etv2-si-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:10px;
 				border-top:1px solid #e2e8f0;}
 			.etv2-si-muted{color:#94a3b8;} .etv2-si-mono{font-family:monospace;}
@@ -271,12 +277,31 @@ frappe.ui.form.on("Sales Invoice", {
 				}
 
 				if (res.status === "ok" && res.receipt_name) {
-					frappe.show_alert({
-						message: res.already_active
-							? __("Existing receipt opened for review.")
-							: __("Receipt document created — review it and click Authorize MoR Receipt."),
-						indicator: res.already_active ? "blue" : "green",
-					});
+					// A receipt already exists for this payment entry (or the
+					// invoice was settled by an earlier one). Tell the user
+					// rather than silently creating a new document, then show
+					// the existing receipt.
+					if (!res.created) {
+						frappe.msgprint({
+							title: __("Receipt Already Generated"),
+							message:
+								`<div>${__("Invoice")}: <b>${frappe.utils.escape_html(frm.doc.name)}</b></div>` +
+								`<div style="margin-top:8px;">${__("A receipt has already been generated for Payment Entry")} <b>${frappe.utils.escape_html(
+									res.payment_entry || ""
+								)}</b>.</div>` +
+								`<div style="margin-top:6px;">${__(
+									"No new receipt was created. The existing receipt is shown below."
+								)}</div>`,
+							indicator: "orange",
+						});
+					} else {
+						frappe.show_alert({
+							message: res.already_active
+								? __("Existing receipt opened for review.")
+								: __("Receipt document created — review it and click Authorize MoR Receipt."),
+							indicator: res.already_active ? "blue" : "green",
+						});
+					}
 					// /app/eims-invoice-receipt/<receipt name>
 					frappe.set_route("Form", "EIMS Invoice Receipt", res.receipt_name);
 					return;
@@ -431,10 +456,17 @@ frappe.ui.form.on("Sales Invoice", {
 				</tr>`
 			)
 			.join("");
+		// Withholding rows are shown apart from output VAT: the buyer remits
+		// them to the tax authority, they are never payable to the seller, and
+		// they are what makes "Grand Total" differ from "Registered @ MoR".
 		const taxes = (d.taxes || [])
 			.map(
-				(t) => `<tr>
-					<td colspan="2" data-label="${__("Tax")}">${esc(t.description || "")}</td>
+				(t) => `<tr${t.is_withholding ? ' class="etv2-si-row-wth"' : ""}>
+					<td colspan="2" data-label="${__("Tax")}">${esc(t.description || "")}${
+						t.is_withholding
+							? ` <span class="etv2-si-tag">${__("Withheld — remitted by buyer to tax authority")}</span>`
+							: ""
+					}</td>
 					<td class="etv2-si-right etv2-si-num" data-label="${__("Rate")}">${t.rate}%</td>
 					<td class="etv2-si-right etv2-si-num" data-label="${__("Amount")}">${format_currency(t.tax_amount, cur)}</td>
 				</tr>`
@@ -512,8 +544,28 @@ ${can_receipt ? `<button type="button" class="btn btn-default btn-sm etv2-si-fx-
 					<div class="etv2-si-total"><label>${__("Discount")}</label><span>-&nbsp;${format_currency(d.discount_amount, cur)}</span></div>
 					<div class="etv2-si-total"><label>${__("Total Tax")}</label><span>${format_currency(d.total_taxes_and_charges, cur)}</span></div>
 					<div class="etv2-si-total is-grand"><label>${__("Grand Total")}</label><span>${format_currency(d.grand_total, cur)}</span></div>
-					${d.mor_total ? `<div class="etv2-si-total is-grand"><label>${__("Registered @ MoR")}</label><span>${format_currency(d.mor_total, cur)}</span></div>` : ""}
+					${
+						d.mor_total
+							? `<div class="etv2-si-total"><label>${__("Registered @ MoR (VAT inclusive)")}</label><span>${format_currency(d.mor_total, cur)}</span></div>
+							   ${
+									d.withheld_amount
+										? `<div class="etv2-si-total is-wth"><label>${__("Less: Tax withheld (not payable to seller)")}</label><span>-&nbsp;${format_currency(d.withheld_amount, cur)}</span></div>
+										   <div class="etv2-si-total is-grand"><label>${__("Collectible (payable by buyer)")}</label><span>${format_currency(
+												d.collectible_total != null ? d.collectible_total : d.mor_total,
+												cur
+											)}</span></div>`
+										: ""
+							   }`
+							: ""
+					}
 				</div>
+				${
+					d.mor_total && d.withheld_amount
+						? `<div class="etv2-si-note">${__(
+								"The registered total is the VAT-inclusive amount MoR knows the invoice for. The withheld amount is deducted by the buyer and remitted to the tax authority, so it is never payable to the seller and never part of what a receipt collects."
+						  )}</div>`
+						: ""
+				}
 				${footer}
 			</div>`;
 

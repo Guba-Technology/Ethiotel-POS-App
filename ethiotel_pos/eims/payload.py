@@ -15,11 +15,129 @@ from .constants import (
 import frappe
 
 
+def _is_consolidated(doc):
+    """True for the Sales Invoice ERPNext builds when it consolidates POS Invoices
+    at shift close.
+
+    That document is a pure accounting artifact: the tax rows, customer data and
+    EIMS registration all live on the original POS Invoices, and the consolidated
+    copy is never registered with MoR. Validating it would fail shift close for
+    reasons the cashier cannot act on.
+    """
+    if doc.doctype != "Sales Invoice":
+        return False
+
+    if getattr(doc, "is_consolidated", 0):
+        return True
+
+    name = getattr(doc, "name", None)
+    if not name or name == "new-sales-invoice":
+        return False
+
+    if frappe.db.exists("POS Invoice Merge Log", {"consolidated_invoice": name}):
+        return True
+
+    return bool(frappe.db.exists("POS Invoice Merge Log", {"consolidated_credit_note": name}))
+
+
+def _item_has_own_tax(item):
+    """True when an invoice line already declares a tax of its own.
+
+    Deliberately checks only item_tax_template, not item_tax_rate: ERPNext
+    rebuilds item_tax_rate from the template on every recalculation, so the
+    stored map is derived data. Trusting it would misread a line whose template
+    was cleared but whose previous map had not been recalculated yet, and would
+    charge the default VAT to an exempt supply.
+    """
+    return bool((item.get("item_tax_template") or "").strip())
+
+
+def _has_tax_row(doc, account):
+    return any((te.get("account_head") or "") == account for te in (doc.get("taxes") or []))
+
+
+def apply_default_item_tax_template(doc):
+    """Give the Default tax account to invoice lines that carry no tax at all.
+
+    That is what the Default row on EIMS Setting is for: rather than only
+    supplying a fallback tax code in the MoR payload while the invoice stays
+    untaxed, the invoice itself receives the tax, so the posted total, the tax
+    breakup and the payload all agree.
+
+    It is applied through the Default row's Item Tax Template rather than by
+    writing item_tax_rate directly, because update_item_tax_map() rebuilds
+    item_tax_rate from item_tax_template on every recalculation and would
+    discard a hand-written map.
+
+    Returns the list of item_codes that were given the default, or an empty
+    list when there was nothing to do (idempotent across repeated saves).
+    """
+    if doc.doctype != "Sales Invoice":
+        return []
+    if not (doc.get("items") or []):
+        return []
+
+    default_row = _require_default_tax_row()
+    template = (default_row.get("item_tax_template") or "").strip()
+    account = (default_row.get("account") or "").strip()
+    if not template:
+        frappe.throw(
+            "The <b>Default</b> row in "
+            '<a href="/app/eims-setting">EIMS Setting &rarr; Account Config</a> has no '
+            "<b>Item Tax Template</b>, so it cannot be applied to invoice items that "
+            "have no tax code. Set it to a template that taxes account "
+            f"<b>{account}</b>.",
+            title="EIMS Schema Error: Default Tax Code Has No Item Tax Template",
+        )
+
+    applied = []
+    for item in doc.items:
+        if _item_has_own_tax(item):
+            continue
+        item.item_tax_template = template
+        applied.append(item.item_code)
+
+    if not applied:
+        return []
+
+    # The template only drives the amount once a matching Taxes and Charges row
+    # exists, so add it when the invoice was created without a tax template.
+    if not _has_tax_row(doc, account):
+        inclusive = any(
+            int(te.get("included_in_print_rate") or 0) for te in (doc.get("taxes") or [])
+        )
+        doc.append(
+            "taxes",
+            {
+                "charge_type": "On Net Total",
+                "account_head": account,
+                # Deliberately 0, mirroring ERPNext's own
+                # append_taxes_from_item_tax_template(). _get_tax_rate() takes
+                # the rate from each item's tax map when that account is present
+                # and falls back to this row's rate when it is not. Seeding the
+                # row with 15% would therefore also charge every zero-rated and
+                # exempt line that does not list this account.
+                "rate": 0.0,
+                "description": account,
+                "category": "Total",
+                "add_deduct_tax": "Add",
+                "included_in_print_rate": 1 if inclusive else 0,
+                "set_by_item_tax_template": 1,
+            },
+        )
+
+    doc.calculate_taxes_and_totals()
+    return applied
+
+
 def validate_invoice_for_eims(doc):
     """EIMS validations that run during Sales Invoice / POS Invoice validate
     (before save). Catches data errors early instead of at registration time."""
     settings = frappe.get_doc("EIMS Setting")
     if doc.doctype not in ("Sales Invoice", "POS Invoice"):
+        return
+
+    if _is_consolidated(doc):
         return
 
     is_walk_in = (doc.customer or "") == WALK_IN_CUSTOMER
@@ -242,6 +360,19 @@ def validate_invoice_for_eims(doc):
                 EIMSConnectorPayload()._align_note_items(
                     doc.items or [], snapshot["item_lines"], doc, note_type_here)
 
+    # --- Give the Default tax account to lines that carry no tax of their own ---
+    # Done before the mapping check below so the tax that was just applied is
+    # validated as a normal mapped account, and before the per-line TaxCode
+    # check so an untaxed line can no longer be the reason an invoice is
+    # rejected.
+    apply_default_item_tax_template(doc)
+
+    # --- Every tax account must be mapped to an EIMS tax code ---
+    # MoR only accepts registered tax codes, so an unmapped ERP account can
+    # never be sent as TaxCode. Checked before save so the gap is reported in
+    # the form instead of failing at registration.
+    validate_tax_code_config(doc)
+
     # --- Every line must carry a TaxCode via the Taxes and Charges child ---
     # table. MoR rejects any line missing TaxCode/TaxAmount (schema 1028). The
     # Taxes and Charges table is the source: per-line item_tax_rate is a bonus
@@ -251,42 +382,329 @@ def validate_invoice_for_eims(doc):
             f"<b>Tax Code required</b> for invoice <b>{doc.name}</b>.<br><br>"
             f"EIMS requires every line to carry a <b>TaxCode</b> and <b>TaxAmount</b>. Add a "
             f"tax row to the <b>Sales Taxes and Charges</b> table (e.g. <b>VAT15 - GT</b> for 15% "
-            f"VAT, <b>VAT0 - GT</b> for zero-rated, or <b>VATEX - GT</b> for exempt supplies) or "
-            f"set an <b>Item Tax Template</b> on the items, then save again.",
+            f"VAT, <b>VAT0 - GT</b> for zero-rated, or <b>VATEX - GT</b> for exempt supplies), set "
+            f"an <b>Item Tax Template</b> on the items, or configure a <b>Default</b> EIMS tax code "
+            f"under <b>EIMS Setting → Account Config</b>, then save again.",
             title="EIMS Schema Error: Missing Tax Code",
         )
 
 
-def resolve_item_tax_rate(item_row, header_tax_code, header_tax_rate):
+def resolve_item_tax_rate(item_row, header_tax_code, header_tax_rate, strict=False):
     """Resolve the effective EIMS tax code + rate for one invoice line.
 
     Mirrors the logic used when building the registration payload so the
     same answer is produced at validate time (pre-save) and at submit time.
     item_tax_rate is a JSON map like {"VAT15 - GT": 15}; the code is still
     captured at 0% so VAT0 / VATEX lines send a valid TaxCode to MoR.
+
+    strict=True (payload build) refuses to emit a TaxCode that is not backed
+    by an EIMS Setting > Account Config row, so an unmapped account can never
+    reach MoR carrying a raw ERP account name as the tax code.
     """
     line_tax_rate = header_tax_rate
     line_tax_code = header_tax_code
+    line_account = None
     try:
         item_tax_rate_map = json.loads(item_row.get("item_tax_rate") or "{}") or {}
     except (ValueError, TypeError):
         item_tax_rate_map = {}
     fallback_code = None
+    fallback_account = None
     for code, rate_val in item_tax_rate_map.items():
         rate_val = float(rate_val or 0)
         resolved = frappe.db.get_value("Account", code, "account_name") if code else None
         if rate_val:
             line_tax_rate = rate_val
             line_tax_code = resolved or code
+            line_account = code
             break
         if fallback_code is None:
             fallback_code = resolved or code
+            fallback_account = code
     else:
         # All entries are 0% (VAT0 / VATEX) — still send the code.
         if fallback_code is not None:
             line_tax_code = fallback_code
+            line_account = fallback_account
             line_tax_rate = 0
+
+    # Translate the resolved account through the configured EIMS tax code
+    # mapping (EIMS Setting > Account Config). Only the configured code may be
+    # sent to MoR; the raw ERP account name is never a valid tax code.
+    if line_tax_code:
+        configured = _tax_code_for(line_tax_code)
+        if configured:
+            return configured, line_tax_rate
+        if strict:
+            _throw_tax_code_not_configured([line_account or line_tax_code])
+        return line_tax_code, line_tax_rate
+
+    # No code on this line or the header: fall back to the single configured
+    # Default EIMS tax code (rate read from its Account).
+    default_row = _require_default_tax_row() if strict else _default_tax_row()
+    if default_row:
+        default_rate = 0.0
+        if default_row.get("account"):
+            default_rate = float(
+                frappe.db.get_value("Account", default_row.get("account"), "tax_rate") or 0.0
+            )
+        return ((default_row.get("tax_code") or "").strip()), default_rate
     return line_tax_code, line_tax_rate
+
+
+def _settings_tax_rows():
+    """Configured EIMS tax code rows from EIMS Setting > Account Config."""
+    settings = frappe.get_cached_doc("EIMS Setting")
+    return settings.get("tax_code_config") or []
+
+
+def _default_tax_row():
+    """The single row marked Is Default (the fallback EIMS tax code).
+
+    Returns None only when the mapping table is empty. A populated table must
+    carry exactly one default (enforced by EIMS Setting validation), so when
+    more than one is found we refuse to guess and return None rather than
+    silently picking the first.
+    """
+    defaults = [
+        row for row in _settings_tax_rows() if int(row.get("is_default") or 0) == 1
+    ]
+    if len(defaults) == 1:
+        return defaults[0]
+    return None
+
+
+def _require_default_tax_row():
+    """The default tax code row, or a clear error explaining what is missing."""
+    rows = _settings_tax_rows()
+    if not rows:
+        frappe.throw(
+            "No EIMS tax codes are configured. Add at least one row to "
+            '<a href="/app/eims-setting">EIMS Setting &rarr; Account Config</a>, '
+            "marking exactly one as <b>Default</b>.",
+            title="EIMS Schema Error: No Default Tax Code",
+        )
+    defaults = [row for row in rows if int(row.get("is_default") or 0) == 1]
+    if not defaults:
+        frappe.throw(
+            "No <b>Default</b> tax code is configured. Mark exactly one row as "
+            "<b>Default</b> on "
+            '<a href="/app/eims-setting">EIMS Setting &rarr; Account Config</a>. '
+            "The default is used when an invoice line carries no tax code of its own.",
+            title="EIMS Schema Error: No Default Tax Code",
+        )
+    if len(defaults) > 1:
+        listed = ", ".join(
+            f"<b>{(r.get('tax_code') or '').strip()}</b>" for r in defaults
+        )
+        frappe.throw(
+            "More than one row is marked <b>Default</b> in the Account Config "
+            "table: {listed}. Exactly one row must be the default.".format(listed=listed),
+            title="EIMS Schema Error: Duplicate Default Tax Code",
+        )
+    return defaults[0]
+
+
+def _tax_config_map():
+    """Build the Account -> EIMS tax code mapping from EIMS Setting.
+
+    The mapping is strictly one-to-one: each tax account maps to exactly one
+    EIMS tax code, and each EIMS tax code is used by exactly one tax account.
+    Both the Account document name and its account_name are indexed so callers
+    can look up either form.
+
+    Returns (mapping, account_conflicts, code_conflicts, duplicate_rows):
+      mapping          alias -> tax code (first configured row wins, so payload
+                       output stays deterministic)
+      account_conflicts  alias -> {codes} when one account has several codes
+      code_conflicts     code -> {accounts} when one code is claimed by
+                       several accounts
+      duplicate_rows     {(account, code)} repeated verbatim in the config
+    """
+    mapping = {}
+    account_conflicts = {}
+    code_conflicts = {}
+    duplicate_rows = set()
+    code_owner = {}
+    seen_pairs = set()
+    for row in _settings_tax_rows():
+        account = (row.get("account") or "").strip()
+        code = (row.get("tax_code") or "").strip()
+        if not account or not code:
+            continue
+
+        pair = (account, code)
+        if pair in seen_pairs:
+            duplicate_rows.add(pair)
+        seen_pairs.add(pair)
+
+        owner = code_owner.get(code)
+        if owner and owner != account:
+            code_conflicts.setdefault(code, {owner}).add(account)
+        else:
+            code_owner[code] = account
+
+        account_name = (frappe.db.get_value("Account", account, "account_name") or "").strip()
+        for alias in (account, account_name):
+            if not alias:
+                continue
+            existing = mapping.get(alias)
+            if existing:
+                if existing != code:
+                    account_conflicts.setdefault(alias, set()).update({existing, code})
+                continue
+            mapping[alias] = code
+    return mapping, account_conflicts, code_conflicts, duplicate_rows
+
+
+def _tax_code_for(identifier):
+    """Map an Account (document name or account_name) to its configured EIMS
+    tax code. Returns None when no EIMS Setting > Account Config row matches —
+    callers must never substitute a raw account name."""
+    if not identifier:
+        return None
+    mapping, _account_conflicts, _code_conflicts, _duplicate_rows = _tax_config_map()
+    return mapping.get(str(identifier).strip())
+
+
+def _invoice_tax_accounts(doc):
+    """Tax accounts referenced by the invoice, in encounter order.
+
+    Covers the Taxes and Charges child table plus every per-line item_tax_rate
+    override key.
+
+    A row counts as a tax account when its Account is of type "Tax", rather
+    than by charge_type: real invoices use charge_type "On Net Total" (not
+    "On Tax"), and flat "Actual" rows can still point at a genuine Tax account,
+    so keying off charge_type would both miss real taxes and misclassify
+    others. Non-tax heads such as a delivery-charges shipping account are
+    correctly ignored.
+    """
+    accounts = []
+
+    def add(account):
+        account = (account or "").strip()
+        if not account or account in accounts:
+            return
+        if not _is_tax_account(account):
+            return
+        accounts.append(account)
+
+    for te in (doc.get("taxes") or []):
+        add(te.get("account_head"))
+
+    for item in (doc.get("items") or []):
+        try:
+            rate_map = json.loads(item.get("item_tax_rate") or "{}") or {}
+        except (ValueError, TypeError):
+            continue
+        if isinstance(rate_map, dict):
+            for account in rate_map:
+                add(account)
+    return accounts
+
+
+def _is_tax_account(account):
+    """True when the Account exists and is of type Tax. An unknown or deleted
+    Account is not treated as a tax account here; ERP validation reports it."""
+    if not account:
+        return False
+    account_type = frappe.db.get_value("Account", account, "account_type")
+    if not account_type:
+        return False
+    return str(account_type).strip().lower() == "tax"
+
+
+def _throw_tax_code_not_configured(accounts):
+    """Reject an invoice whose tax accounts are not mapped to EIMS tax codes."""
+    accounts = [a for a in (accounts or []) if a]
+    if not accounts:
+        return
+    settings_url = '<a href="/app/eims-setting">EIMS Setting &rarr; Account Config</a>'
+    frappe.throw(
+        "Tax account(s) <b>{accounts}</b> are not mapped to an EIMS tax code.<br><br>"
+        "EIMS requires each tax account to be mapped to a valid tax code on "
+        "{settings}. Add a row for each account (for example <b>VAT15 - GT</b> "
+        "&rarr; <b>VAT15</b>, <b>VAT0 - GT</b> &rarr; <b>VAT0</b>, "
+        "<b>VATEX - GT</b> &rarr; <b>VATEX</b>), then save the invoice again."
+        .format(
+            accounts=", ".join(f"<b>{a}</b>" for a in accounts),
+            settings=settings_url,
+        ),
+        title="EIMS Schema Error: Tax Account Not Mapped",
+    )
+
+
+def validate_tax_code_config(doc):
+    """Every tax account used by the invoice must resolve to an EIMS tax code.
+
+    Also requires the mapping table to carry exactly one Default tax code,
+    which is the fallback for any line that resolves no code of its own. Runs
+    before save so configuration gaps are reported in the form, never at
+    registration.
+    """
+    # Exactly one default tax code must exist before any invoice can be saved.
+    _require_default_tax_row()
+
+    accounts = _invoice_tax_accounts(doc)
+    if not accounts:
+        return
+    mapping, account_conflicts, code_conflicts, duplicate_rows = _tax_config_map()
+
+    missing = []
+    for account in accounts:
+        account_name = (frappe.db.get_value("Account", account, "account_name") or "").strip()
+        if account not in mapping and account_name not in mapping:
+            missing.append(account)
+
+    if missing:
+        _throw_tax_code_not_configured(missing)
+
+    if account_conflicts:
+        detail = ", ".join(
+            "<b>{account}</b> ({codes})".format(
+                account=account, codes=" / ".join(sorted(codes))
+            )
+            for account, codes in sorted(account_conflicts.items())
+        )
+        frappe.throw(
+            "Conflicting EIMS tax codes are configured for the same tax account: "
+            "{detail}.<br><br>Keep exactly one row per account on "
+            '<a href="/app/eims-setting">EIMS Setting &rarr; Account Config</a>, '
+            "then save the invoice again.".format(detail=detail),
+            title="EIMS Schema Error: Duplicate Tax Account Mapping",
+        )
+
+    if code_conflicts:
+        detail = ", ".join(
+            "<b>{code}</b> &rarr; {accounts}".format(
+                code=code,
+                accounts=" / ".join(
+                    f"<b>{a}</b>" for a in sorted(accounts)
+                ),
+            )
+            for code, accounts in sorted(code_conflicts.items())
+        )
+        frappe.throw(
+            "The same EIMS tax code is mapped to more than one tax account: "
+            "{detail}.<br><br>Each tax code must belong to exactly one account. "
+            "Keep exactly one row per tax code on "
+            '<a href="/app/eims-setting">EIMS Setting &rarr; Account Config</a>, '
+            "then save the invoice again.".format(detail=detail),
+            title="EIMS Schema Error: Duplicate Tax Code Mapping",
+        )
+
+    if duplicate_rows:
+        detail = ", ".join(
+            f"<b>{account}</b> &rarr; <b>{code}</b>" for account, code in sorted(duplicate_rows)
+        )
+        frappe.throw(
+            "Duplicate rows exist in the EIMS tax code mapping: {detail}.<br><br>"
+            "Each tax account must appear exactly once on "
+            '<a href="/app/eims-setting">EIMS Setting &rarr; Account Config</a>, '
+            "then save the invoice again.".format(detail=detail),
+            title="EIMS Schema Error: Duplicate Tax Code Mapping",
+        )
 
 
 def header_tax_info(doc):
@@ -317,11 +735,12 @@ def _add_if_present(target_dict, key, value):
 
 
 def _invoice_has_tax_code(doc):
-    """True if the invoice carries a resolvable EIMS TaxCode anywhere.
+    """True if the invoice can carry a resolvable EIMS TaxCode on every line.
 
     Checks the Taxes and Charges child table first, then per-line
-    item_tax_rate overrides. Used by validate_invoice_for_eims to prompt
-    the user before a tax-less invoice ever reaches registration."""
+    item_tax_rate overrides, then the configured Default EIMS tax code.
+    Used by validate_invoice_for_eims to prompt the user before a tax-less
+    invoice ever reaches registration."""
     header_code, header_rate = header_tax_info(doc)
     if header_code:
         return True
@@ -329,7 +748,14 @@ def _invoice_has_tax_code(doc):
         line_code, _rate = resolve_item_tax_rate(item_row, "", 0)
         if line_code:
             return True
+    if _default_tax_row():
+        return True
     return False
+
+
+def _has_default_tax_code():
+    """True when exactly one Default tax code row is configured."""
+    return _default_tax_row() is not None
 
 
 def resolve_mor_payment_mode(mode_of_payment):
@@ -397,7 +823,7 @@ def classify_withholding(account):
 
 
 def _row_rate(te):
-  
+
     rate = getattr(te, "tax_rate", None)
     if rate in (None, ""):
         rate = getattr(te, "rate", None)
@@ -408,6 +834,23 @@ def _row_rate(te):
         return float(rate or 0.0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _row_tax_amount(te):
+    """Monetary tax amount for a Taxes and Charges row.
+
+    With `apply_discount_on = "Grand Total"` ERPNext stores two figures per
+    row: `tax_amount` is computed on the pre-discount `base_total`, while
+    `tax_amount_after_discount_amount` is computed on the post-discount
+    `net_total`. The latter is what the header (`total_taxes_and_charges`)
+    and `grand_total` actually use, so prefer it whenever the invoice
+    carries a header discount.
+    """
+    for attr in ("tax_amount_after_discount_amount", "tax_amount"):
+        value = getattr(te, attr, None)
+        if value not in (None, ""):
+            return float(value or 0.0)
+    return 0.0
 
 
 def sum_withholding(invoice_doc, transaction_type=None):
@@ -434,10 +877,14 @@ def sum_withholding(invoice_doc, transaction_type=None):
         if not account:
             continue
         category = classify_withholding(account)
+        # ValueDetails.TransactionWithholdValue / IncomeWithholdValue are
+        # monetary amounts, NOT percentages. Reading the rate here used to
+        # register "3.0" instead of the real withheld amount.
+        amount = abs(_row_tax_amount(te))
         if category == "transaction_wht":
-            transaction_wht += abs(_row_rate(te))
+            transaction_wht += amount
         elif category == "income_wht" and transaction_type == "B2G":
-            income_wht += abs(_row_rate(te))
+            income_wht += amount
     return transaction_wht, income_wht
 
 
@@ -729,10 +1176,15 @@ class EIMSConnectorPayload:
         excise_val = getattr(invoice_doc, "custom_excise_tax_value", None)
         _add_if_present(payload["ValueDetails"], "ExciseValue", excise_val)
 
-       
+
         transaction_wht, income_wht = sum_withholding(invoice_doc, transaction_type)
         payload["ValueDetails"]["TransactionWithholdValue"] = round(transaction_wht, 6)
         payload["ValueDetails"]["IncomeWithholdValue"] = round(income_wht, 6)
+
+        # Exactly one Default tax code must be configured before any payload is
+        # produced. It is the fallback for lines that resolve no code of their
+        # own, so building without it would leave the submission ambiguous.
+        _require_default_tax_row()
 
         tax_type, tax_rate = header_tax_info(invoice_doc)
 
@@ -750,16 +1202,16 @@ class EIMSConnectorPayload:
             # Per-item tax rate/code (item_tax_rate is a JSON map like
             # {"VAT15 - GT": 15}) — falls back to the header tax row. The code
             # is captured even at 0% so VAT0 / VATEX lines send a valid
-            # TaxCode to MoR.
+            # TaxCode to MoR. strict=True refuses to emit an unmapped account.
             line_tax_code, line_tax_rate = resolve_item_tax_rate(
-                item, tax_type, tax_rate)
+                item, tax_type, tax_rate, strict=True)
 
             line_tax = round(line_net_amount * (line_tax_rate / 100), 6)
 
 
             unit_price = round(line_net_amount / qty, 6) if qty else base_rate
 
-         
+
             line_discount = 0.0
             pl_rate = float(item.get("price_list_rate") or 0)
             amount_incl = abs(float(item.amount or 0)) or (base_rate * qty)

@@ -58,7 +58,7 @@ def _safe_local(invoice):
 def _lookup_local(irn):
     company_name = None
     for doctype in ("Sales Invoice", "POS Invoice"):
-        
+
         row = frappe.db.get_value(
                 doctype,
                 {"custom_irn": irn},
@@ -269,12 +269,12 @@ def _buyer_details(invoice):
     return buyer
 
 
-def _receipt_items(invoice):
-    doctype = invoice.get("_invoice_doctype")
+def _receipt_items(invoice, doctype=None):
+    dt = doctype or invoice.get("_invoice_doctype")
     name = invoice.get("name")
-    if not doctype or not frappe.db.exists(doctype, name):
+    if not dt or not frappe.db.exists(dt, name):
         return []
-    doc = frappe.get_doc(doctype, name)
+    doc = frappe.get_doc(dt, name)
     items = []
     for it in doc.get("items") or []:
         amount = it.get("base_net_amount") or it.get("net_amount") or it.get("amount")
@@ -290,6 +290,201 @@ def _receipt_items(invoice):
             "amount": amount,
         })
     return items
+
+
+def _lookup_receipt_local(rrn):
+    """Find an EIMS Invoice Receipt by the RRN MoR returned for it.
+
+    The public receipt link carries the receipt RRN, not the invoice IRN, so
+    an invoice-only lookup finds nothing and the whole receipt renders as
+    'Not Registered'. The returned_rnn is what MoR issued, so match that
+    first and fall back to eims_rrn."""
+    if not rrn:
+        return None
+    name = frappe.db.get_value(
+        "EIMS Invoice Receipt",
+        {"returned_rnn": rrn},
+        "name",
+    )
+    if not name:
+        name = frappe.db.get_value(
+            "EIMS Invoice Receipt",
+            {"eims_rrn": rrn},
+            "name",
+        )
+    if not name:
+        return None
+    return frappe.db.get_value(
+        "EIMS Invoice Receipt",
+        name,
+        [
+            "name",
+            "receipt_number",
+            "receipt_date",
+            "eims_rrn",
+            "returned_rnn",
+            "eims_status",
+            "party",
+            "party_name",
+            "seller_tin",
+            "currency",
+            # Needed for the receipt's own total; without it the printed
+            # receipt shows 0.00.
+            "collected_amount",
+            "mode_of_payment",
+            "collector_name",
+            "source_system_no",
+            "source_system_type",
+            "receipt_type",
+            "docstatus",
+        ],
+        as_dict=True,
+    )
+
+
+def _safe_receipt_doc(receipt):
+    """Public-safe view of a payment receipt, shaped like the invoice
+    payload so the same page template can render either."""
+    rows = frappe.get_all(
+        "EIMS Invoice Receipt Reference",
+        filters={"parent": receipt.get("name"), "parenttype": "EIMS Invoice Receipt"},
+        fields=[
+            "sales_invoice",
+            "pos_invoice",
+            "invoice_irn",
+            "payment_coverage",
+            "receipt_paid_amount",
+            "mor_collected_amount",
+            "invoice_paid_amount",
+            "remaining_amount",
+            "total_amount",
+            "withheld_amount",
+            "collectible_amount",
+            "collectible_remaining_amount",
+            "collectible_coverage",
+        ],
+    )
+    rrn = receipt.get("returned_rnn") or receipt.get("eims_rrn") or ""
+    invoice_name = rows[0].sales_invoice or rows[0].pos_invoice if rows else None
+    # The receipt has no company of its own; take it from the invoice it pays.
+    company = None
+    if rows and rows[0].sales_invoice and frappe.db.exists("Sales Invoice", rows[0].sales_invoice):
+        company = frappe.db.get_value("Sales Invoice", rows[0].sales_invoice, "company")
+    elif rows and rows[0].pos_invoice and frappe.db.exists("POS Invoice", rows[0].pos_invoice):
+        company = frappe.db.get_value("POS Invoice", rows[0].pos_invoice, "company")
+
+    coverage_rows = []
+    for row in rows:
+        total = _numeric(row.total_amount, 0.0)
+        paid = _numeric(row.invoice_paid_amount, 0.0)
+        remaining = _numeric(row.remaining_amount, 0.0)
+        own = _numeric(row.receipt_paid_amount, 0.0)
+        withheld = _numeric(row.withheld_amount, 0.0)
+        collectible = _numeric(row.collectible_amount, 0.0) or max(total - withheld, 0.0)
+        collectible_remaining = _numeric(row.collectible_remaining_amount, 0.0)
+        if not collectible_remaining and collectible:
+            collectible_remaining = max(collectible - paid, 0.0)
+        coverage = (row.payment_coverage or "").upper() or (
+            "FULL" if remaining <= 0 else "PARTIAL"
+        )
+        collectible_coverage = (row.collectible_coverage or "").upper() or (
+            "FULL" if collectible_remaining <= 0 else "PARTIAL"
+        )
+        coverage_rows.append({
+            "invoice": row.sales_invoice or row.pos_invoice,
+            "invoice_irn": row.invoice_irn,
+            "payment_coverage": coverage,
+            "total_amount": total,
+            "receipt_paid_amount": own,
+            # What this receipt declares to MoR, which on a closing receipt
+            # also carries the tax withheld by the buyer.
+            "mor_collected_amount": _numeric(row.mor_collected_amount, 0.0) or own,
+            "invoice_paid_amount": paid,
+            "remaining_amount": remaining,
+            "withheld_amount": withheld,
+            "collectible_amount": collectible,
+            "collectible_remaining_amount": collectible_remaining,
+            "collectible_coverage": collectible_coverage,
+        })
+
+    total_withheld = sum(r["withheld_amount"] for r in coverage_rows)
+    total_collectible = sum(r["collectible_amount"] for r in coverage_rows)
+
+    # The receipt carries no seller, buyer or item detail of its own - it all
+    # lives on the invoice it pays. Fetch it so the receipt page renders the
+    # same detail as the invoice page.
+    inv_doc = None
+    inv_doctype = None
+    if rows:
+        for field, doctype in (("sales_invoice", "Sales Invoice"), ("pos_invoice", "POS Invoice")):
+            name = rows[0].get(field)
+            if name and frappe.db.exists(doctype, name):
+                inv_doctype = doctype
+                inv_doc = frappe.get_doc(doctype, name)
+                break
+
+    if inv_doc:
+        seller = _seller_details(inv_doc)
+        buyer = _buyer_details(inv_doc)
+        items = _receipt_items(inv_doc, inv_doctype)
+        net_total = _numeric(inv_doc.get("net_total"), 0.0)
+        tax_total = _numeric(inv_doc.get("total_taxes_and_charges"), 0.0)
+        discount = _numeric(inv_doc.get("discount_amount"), 0.0)
+    else:
+        seller = _seller_details({"company": company})
+        buyer = {"legal_name": receipt.get("party_name") or receipt.get("party") or ""}
+        items = []
+        net_total = 0.0
+        tax_total = total_withheld
+        discount = 0.0
+
+    # The registered total MoR holds for the invoice, which is what the receipt
+    # settles - the invoice grand total plus any tax withheld by the buyer.
+    registered_total = sum(r["total_amount"] for r in coverage_rows) or (
+        _numeric(inv_doc.get("grand_total"), 0.0) + total_withheld if inv_doc else 0.0
+    )
+    paid_total = sum(
+        _numeric(r.get("mor_collected_amount"), 0.0) or r["receipt_paid_amount"]
+        for r in coverage_rows
+    )
+
+    status = receipt.get("eims_status") or "Pending"
+    active = status == "Active"
+    return {
+        "verified": active,
+        "cancelled": False,
+        "status": "Registered" if active else status,
+        "is_receipt": True,
+        "receipt_name": receipt.get("name"),
+        "receipt_number": receipt.get("receipt_number"),
+        "receipt_type": receipt.get("receipt_type") or "Sales Receipts",
+        "receipt_date": receipt.get("receipt_date"),
+        "irn": rrn,
+        "document_number": receipt.get("receipt_number"),
+        "invoice_name": invoice_name,
+        "document_date": receipt.get("receipt_date"),
+        "posting_time": inv_doc.get("posting_time") if inv_doc else None,
+        "system_number": receipt.get("source_system_no") or "",
+        "sale_type": inv_doc.get("custom_transaction_type") if inv_doc else "",
+        "qr_code_url": inv_doc.get("custom_qr_code_url") if inv_doc else None,
+        "currency": receipt.get("currency") or "ETB",
+        "mode_of_payment": receipt.get("mode_of_payment") or "CASH",
+        "cashier": receipt.get("collector_name") or "",
+        "seller": seller,
+        "buyer": buyer,
+        "items": items,
+        "coverage": coverage_rows,
+        "withheld_amount": total_withheld,
+        "collectible_amount": total_collectible,
+        "totals": {
+            "net_total": net_total,
+            "tax_total": tax_total,
+            "discount": discount,
+            "grand_total": registered_total,
+            "paid_amount": paid_total,
+            "outstanding_amount": max(registered_total - paid_total, 0.0),
+        },
+    }
 
 
 def _safe_receipt_local(invoice):
@@ -311,7 +506,7 @@ def _safe_receipt_local(invoice):
         "invoice_name": invoice.get("name"),
         "document_number": invoice.get("custom_document_number"),
         "document_date": invoice.get("posting_date"),
-       
+
         "posting_time": invoice.get("posting_time"),
         "irn": invoice.get("custom_irn"),
         "system_number": sysem_number,
@@ -333,14 +528,15 @@ def _safe_receipt_local(invoice):
 
 
 @frappe.whitelist(allow_guest=True)
-def receipt_public(irn=None, qr_payload=None):
+def receipt_public(irn=None, qr_payload=None, rrn=None):
+
     if not frappe.db.get_single_value("EIMS Setting", "public_verify_enabled"):
         frappe.throw(
             "Public invoice receipt is disabled by the supplier.",
             frappe.PermissionError,
         )
 
-    irn = _extract_irn(irn, qr_payload)
+    irn = _extract_irn(irn or rrn, qr_payload)
     if not irn:
         frappe.throw("Provide an IRN (or a QR payload containing one) to view the receipt.")
 
@@ -351,11 +547,17 @@ def receipt_public(irn=None, qr_payload=None):
             frappe.PermissionError,
         )
 
+
+    receipt = _lookup_receipt_local(irn)
+    if receipt:
+        log_audit("Receipt Authorization", success=receipt.get("eims_status") == "Active",
+                  description=f"Public receipt (local lookup) of RRN {irn}")
+        return _safe_receipt_doc(receipt)
+
     local = _lookup_local(irn)
     if local:
         log_audit("Receipt Authorization", success=local.get("custom_eims_status") == "Registered",
                   description=f"Public receipt (local lookup) of IRN {irn}")
-        print("Safe receipt local:", _safe_receipt_local(local))
         return _safe_receipt_local(local)
 
     settings = frappe.get_doc("EIMS Setting")

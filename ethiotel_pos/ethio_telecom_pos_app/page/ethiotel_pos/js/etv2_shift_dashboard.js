@@ -119,15 +119,17 @@ erpnext.POSV2.ShiftDashboardWorkspace = class {
 			$list.html(`<div class="etv2-empty">${__("No payments today.")}</div>`);
 			return;
 		}
-		const max = Math.max(...payments.map((p) => p.amount), 1);
+		const max = Math.max(...payments.map((p) => flt(p.amount || 0) + flt(p.opening_amount || 0)), 1);
 		$list.html(
 			payments.map((p) => `
 				<div class="etv2-list-row">
 					<span class="etv2-list-row-label">${frappe.utils.escape_html(p.mode_of_payment)}</span>
 					<div class="etv2-list-bar-wrap">
-						<div class="etv2-list-bar"><div class="etv2-list-bar-fill" style="width:${Math.max((p.amount / max) * 100, 4)}%"></div></div>
+						<div class="etv2-list-bar"><div class="etv2-list-bar-fill" style="width:${Math.max((flt(p.amount) / max) * 100, 4)}%"></div></div>
 					</div>
-					<span class="etv2-list-row-amount">${format_currency(p.amount)}</span>
+					<span class="etv2-list-row-amount">${format_currency(flt(p.amount))}</span>
+					${flt(p.opening_amount) ? `<span class="etv2-list-row-sub">${__("Opening")}: ${format_currency(flt(p.opening_amount))}</span>` : ""}
+					${flt(p.expected_amount) ? `<span class="etv2-list-row-sub">${__("Expected")}: ${format_currency(flt(p.expected_amount))}</span>` : ""}
 				</div>`).join("")
 		);
 	}

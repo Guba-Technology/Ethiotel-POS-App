@@ -1,8 +1,14 @@
 import frappe
 from frappe import _
 from frappe.utils import flt, json
-from ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.utils import get_base_value
+from ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.utils import (
+    get_base_value,
+    net_change_from_payments,
+    reference_base_amount,
+    remaining_change_after_refund,
+)
 from ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.data import (
+    get_payment_entry_references,
     get_pos_invoices,
     get_payments_entries,
 )
@@ -115,6 +121,7 @@ def make_closing_shift_from_opening(opening_shift):
     taxes = []
     payments = []
     pos_payments_table = []
+    shift_change_total = 0
     for detail in opening_shift.get("balance_details"):
         payments.append(
             frappe._dict(
@@ -167,37 +174,63 @@ def make_closing_shift_from_opening(opening_shift):
                     )
                 )
 
-        for p in d.payments:
-            existing_pay = [pay for pay in payments if pay.mode_of_payment == p.mode_of_payment]
+        for payment in net_change_from_payments(
+            d.payments,
+            d.get("change_amount"),
+            get_base_value(d, "change_amount", "base_change_amount", conversion_rate),
+            conversion_rate,
+        ):
+            base_amount = flt(payment["base_amount"])
+            existing_pay = [pay for pay in payments if pay.mode_of_payment == payment["mode_of_payment"]]
             if existing_pay:
-                conversion_rate = d.get("conversion_rate")
-                if existing_pay[0].mode_of_payment == cash_mode_of_payment:
-                    amount = get_base_value(p, "amount", "base_amount", conversion_rate) - get_base_value(
-                        d, "change_amount", "base_change_amount", conversion_rate
-                    )
-                else:
-                    amount = get_base_value(p, "amount", "base_amount", conversion_rate)
-                existing_pay[0].expected_amount += flt(amount)
+                existing_pay[0].expected_amount += base_amount
             else:
                 payments.append(
                     frappe._dict(
                         {
-                            "mode_of_payment": p.mode_of_payment,
+                            "mode_of_payment": payment["mode_of_payment"],
                             "opening_amount": 0,
-                            "expected_amount": get_base_value(
-                                p, "amount", "base_amount", d.get("conversion_rate")
-                            ),
+                            "expected_amount": base_amount,
                         }
                     )
                 )
 
+        shift_change_total += get_base_value(d, "change_amount", "base_change_amount", conversion_rate)
+
     pos_payments = get_payments_entries(opening_shift.get("name"))
+    references_by_entry = get_payment_entry_references([py.get("name") for py in pos_payments])
+    shift_invoice_names = {d.name for d in invoices if d.get("name")}
 
     for py in pos_payments:
         pos_payments_table.append(build_pos_payment_reference(py))
+
+        entry_rate = py.get("target_exchange_rate") or py.get("exchange_rate")
+        base_paid_amount = get_base_value(py, "paid_amount", "base_paid_amount", entry_rate)
+        is_pay = py.payment_type == "Pay"
+        multiplier = -1 if is_pay else 1
+
+        # Tenders already recorded on this shift's invoices must not be counted again.
+        shift_allocated = 0
+        for reference in references_by_entry.get(py.get("name")) or []:
+            if reference.get("reference_name") not in shift_invoice_names:
+                continue
+            shift_allocated += abs(reference_base_amount(reference, entry_rate))
+
+        drawer_base = max(0, abs(base_paid_amount) - shift_allocated)
+
+        if is_pay:
+            # Change handed back for this shift is already netted out of the invoice
+            # tender, so only a refund beyond that reduces the drawer.
+            _covered_change, base_amount = remaining_change_after_refund(shift_change_total, drawer_base)
+            shift_change_total = max(0, shift_change_total - drawer_base)
+        else:
+            base_amount = drawer_base
+
+        signed_amount = multiplier * abs(base_amount)
+        if not signed_amount:
+            continue
+
         existing_pay = [pay for pay in payments if pay.mode_of_payment == py.mode_of_payment]
-        multiplier = -1 if py.payment_type == "Pay" else 1
-        signed_amount = multiplier * abs(get_base_value(py, "paid_amount", "base_paid_amount"))
         if existing_pay:
             existing_pay[0].expected_amount += signed_amount
         else:

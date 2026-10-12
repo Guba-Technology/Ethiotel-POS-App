@@ -1,687 +1,1091 @@
 {% extends "templates/web.html" %}
 
-{% block title %}Tax Invoice Receipt{% endblock %}
+{% block title %}Fiscal Tax Invoice Receipt{% endblock %}
 
 {% block style %}
 <style>
-	:root {
-		--brand: #0057A3;
-		--ink: #0f172a;
-		--ink-soft: #334155;
-		--label: #475569;
-		--border-strong: #1e293b;
-		--border-soft: #cbd5e1;
-		--border-hair: #94a3b8;
-		--bg-page: #eef1f6;
-		--bg-panel: #f1f5f9;
-		--bg-panel-alt: #f8fafc;
-		--bg-highlight: rgba(0, 87, 163, 0.06);
-	}
-	* { box-sizing: border-box; }
-	body { background: var(--bg-page); }
-	.receipt-wrap {
-		margin: 0 auto; padding: 24px 12px 48px;
-		font-family: Arial, "Noto Sans Ethiopic", "Nyala", sans-serif;
-		color: var(--ink);
-	}
+:root {
+	--rv-brand: #0f766e;
+	--rv-brand-dark: #134e4a;
+	--rv-brand-tint: #f0fdfa;
+	--rv-gold: #b45309;
+	--rv-gold-tint: #fffbeb;
+	--rv-ink: #0f172a;
+	--rv-soft: #475569;
+	--rv-mute: #94a3b8;
+	--rv-line: #cbd5e1;
+	--rv-line-soft: #e2e8f0;
+	--rv-bg: #f1f5f9;
+	--rv-ok-bg: #dcfce7;
+	--rv-ok-ink: #14532d;
+	--rv-warn-bg: #fef3c7;
+	--rv-warn-ink: #78350f;
+	--rv-bad-bg: #fee2e2;
+	--rv-bad-ink: #7f1d1d;
+}
 
-	/* ================= SHEET (A4 / A5 / Letter) ================= */
-	.receipt {
-		width: 210mm; max-width: 100%; margin: 0 auto;
-		background: #ffffff; border: 1px solid var(--border-soft);
-		box-shadow: 0 8px 30px rgba(15, 23, 42, 0.12);
-		padding: 10mm; font-size: 12px; line-height: 1.45;
-	}
-	.receipt-doc { border: 1px solid var(--border-strong); position: relative; }
+body { background: var(--rv-bg); }
 
-	/* ================= STATUS BADGE ================= */
-	.status-row { display: flex; justify-content: flex-end; padding: 8px 10mm 0; }
-	.status-badge {
-		display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px;
-		font-weight: bold; letter-spacing: .5px; text-transform: uppercase;
-	}
-	.status-badge.ok { background: #2e7d5b; color: #fff; }
-	.status-badge.warn { background: #b8860b; color: #fff; }
-	.status-badge.bad { background: #b23b3b; color: #fff; }
+.rv-wrap { max-width: 1080px; margin: 0 auto; padding: 18px 14px 70px; }
 
-	/* ================= HEADER ================= */
-	.doc-head-row { display: flex; border-bottom: 1px solid var(--border-strong); align-items: stretch; }
-	.doc-logo {
-		width: 150px; border-right: 1px solid var(--border-strong);
-		display: flex; align-items: center; justify-content: center; padding: 12px;
-		background: var(--bg-panel-alt);
-	}
-	.doc-logo img { max-width: 112px; max-height: 72px; object-fit: contain; }
-	.doc-title-block { flex: 1; border-right: 1px solid var(--border-strong); text-align: center; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; }
-	.doc-subtitle { font-weight: 600; font-size: 12px; color: var(--label); }
-	.doc-company-name { font-weight: 700; font-size: 18px; color: var(--brand); margin-top: 4px; }
-	.invoice-meta { width: 260px; padding: 14px 16px; font-size: 12px; display: flex; flex-direction: column; justify-content: center; }
-	.invoice-meta-label { color: #64748b; margin-bottom: 2px; }
-	.meta-row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
-	.meta-row span:first-child { color: var(--label); }
-	.meta-value { font-weight: 700; text-decoration: underline; text-align: right; }
+/* ════════════ PRINT TOOLBAR ════════════ */
+/* ════════════ PRINT TOOLBAR (single line) ════════════ */
+.rv-toolbar {
+	background: #fff;
+	border: 1px solid var(--rv-line);
+	border-radius: 6px;
+	margin-bottom: 12px;
+}
+.rv-bar {
+	display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+	padding: 7px 12px;
+}
+.rv-bar-title {
+	font-size: 11px; font-weight: 800; color: var(--rv-brand-dark);
+	text-transform: uppercase; letter-spacing: .07em; white-space: nowrap;
+}
+.rv-sizes { display: flex; flex-wrap: wrap; gap: 5px; }
+.rv-size-row {
+	display: inline-flex; align-items: baseline; gap: 6px;
+	padding: 5px 10px; border: 1px solid var(--rv-line); border-radius: 5px;
+	background: #fff; color: var(--rv-ink); cursor: pointer;
+	font-family: inherit; font-size: 12px; line-height: 1.2;
+	transition: background .12s ease, border-color .12s ease;
+}
+.rv-size-row b { font-weight: 800; }
+.rv-size-row small { font-size: 10px; color: var(--rv-mute); font-variant-numeric: tabular-nums; }
+.rv-size-row:hover { background: var(--rv-brand-tint); border-color: var(--rv-brand); }
+.rv-size-row.active { background: var(--rv-brand); border-color: var(--rv-brand); color: #fff; }
+.rv-size-row.active small { color: rgba(255, 255, 255, .78); }
 
-	/* ================= SUBHEAD / TITLE / QR ================= */
-	.doc-subhead { display: flex; align-items: center; border-bottom: 1px solid var(--border-strong); padding: 10px 16px; gap: 14px; }
-	.subhead-left { flex: 1; }
-	.doc-type { text-align: center; font-weight: 700; font-size: 20px; color: var(--ink); margin: 4px 0 12px; }
-	.doc-irn, .doc-sysnum { margin-bottom: 6px; font-size: 12px; }
-	.doc-irn .label, .doc-sysnum .label { font-weight: 700; }
-	.doc-irn .value {
-		color: var(--brand); border-bottom: 1px solid var(--border-soft); word-break: break-all;
-		font-family: Consolas, monospace;
-	}
-	.qr { text-align: right; flex: 0 0 auto; }
-	.qr img { width: 200px; height: 200px; background: #fff; padding: 4px; border: 2px solid var(--brand); }
-	.qr .empty-qr {
-		width: 200px; height: 200px; display: inline-flex; align-items: center; justify-content: center;
-		border: 1px dashed #c9cfd6; color: #8a94a6; font-size: 10px; text-align: center;
-	}
-	.qr-caption { font-size: 10px; color: var(--label); margin-top: 4px; }
+.rv-mode-label { font-size: 11px; color: var(--rv-mute); white-space: nowrap; margin-left: auto; }
+.rv-actions { display: flex; gap: 6px; }
+.rv-btn {
+	padding: 6px 14px; border-radius: 5px; border: 1px solid var(--rv-line);
+	background: #fff; color: var(--rv-ink); font-size: 12px; font-weight: 700;
+	cursor: pointer; text-align: center; white-space: nowrap;
+}
+.rv-btn:hover { border-color: var(--rv-brand); color: var(--rv-brand); }
+.rv-btn-primary { background: var(--rv-brand); border-color: var(--rv-brand); color: #fff; }
+.rv-btn-primary:hover { background: var(--rv-brand-dark); color: #fff; }
 
-	/* ================= AMOUNT ================= */
-	.amount-row { text-align: center; padding: 12px 14px; border-bottom: 1px solid var(--border-strong); background: var(--bg-highlight); }
-	.amount-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--label); }
-	.amount { font-size: 30px; color: var(--brand); font-weight: bold; }
+/* ════════════ RECEIPT HOST / PAPER WIDTHS ════════════ */
+.rv-host { display: block; }
+.receipt {
+	margin: 0 auto; background: #fff; color: var(--rv-ink);
+	box-shadow: 0 2px 10px rgba(15, 23, 42, .1);
+	-webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
 
-	/* ================= SELLER / BUYER PANELS ================= */
-	.parties { display: flex; border-bottom: 1px solid var(--border-strong); }
-	.party { flex: 1; }
-	.party:first-child { border-right: 1px solid var(--border-strong); }
-	.party-head { background: var(--bg-panel); border-bottom: 1px solid var(--border-soft); padding: 8px 12px; font-weight: 700; font-size: 12px; }
-	.party-body { padding: 8px 12px; }
-	dl { margin: 0; }
-	dt { color: var(--label); font-size: 10px; text-transform: uppercase; letter-spacing: .5px; margin-top: 6px; }
-	dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; border-bottom: 1px solid var(--border-hair); padding-bottom: 3px; }
+/* Document mode widths */
+.rv-host.size-a4 .receipt { max-width: 980px; padding: 20px; }
+.rv-host.size-a5 .receipt { max-width: 660px; padding: 12px; }
+.rv-host.size-letter .receipt { max-width: 720px; padding: 15px; }
 
-	/* ================= DOCUMENT DETAILS TABLE ================= */
-	.details { width: 100%; border-collapse: collapse; margin: 0; font-size: 12px; }
-	.details td { padding: 8px 14px; border-bottom: 1px solid var(--border-soft); border-right: 1px solid var(--border-soft); }
-	.details td:last-child { border-right: none; }
-	.details td:first-child { background: var(--bg-panel); color: var(--label); font-size: 11px; white-space: nowrap; width: 38%; }
-	.details td:nth-child(2) { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+/* Thermal mode widths */
+.rv-host.size-80 .receipt { max-width: 76mm; padding: 2mm 1.5mm; }
+.rv-host.size-58 .receipt { max-width: 54mm; padding: 1.5mm 1mm; }
 
-	/* ================= ITEMS ================= */
-	.section-title { background: var(--brand); color: #fff; padding: 8px 12px; font-size: 13px; font-weight: 700; }
-	table.items { width: 100%; border-collapse: collapse; font-size: 12px; }
-	table.items th {
-		text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; font-weight: 700;
-		border-bottom: 2px solid var(--brand); background: var(--bg-highlight); padding: 8px 10px;
-	}
-	table.items td { padding: 8px 10px; border-top: 1px solid var(--border-soft); vertical-align: top; }
-	table.items tbody tr:nth-child(even) td { background: #f8fafc; }
-	td.num, th.num { text-align: right; }
-	td.desc { max-width: 320px; overflow-wrap: break-word; }
+/* ════════════ DOCUMENT MODE ════════════ */
+.doc { font-family: "Segoe UI", Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.45; }
+.rv-host.size-a5 .doc { font-size: 11px; }
+.rv-host.size-letter .doc { font-size: 12px; }
 
-	/* ================= TOTALS (A4) ================= */
-	.totals { border-top: 1px solid var(--border-strong); }
-	.totals .trow { display: flex; justify-content: flex-end; align-items: center; gap: 24px; border-top: 1px solid var(--border-soft); padding: 5px 14px; font-weight: 500; font-size: 12px; }
-	.totals .trow span:first-child { color: var(--ink-soft); }
-	.totals .trow span:last-child { min-width: 130px; text-align: right; }
-	.totals .trow.total { background: var(--bg-highlight); font-weight: 700; font-size: 14px; color: var(--ink); }
+.doc-badge {
+	display: inline-block; padding: 4px 13px; border-radius: 3px;
+	font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+}
+.rv-host.size-a5 .doc-badge { font-size: 9px; padding: 3px 9px; }
+.doc-badge.ok { background: var(--rv-ok-bg); color: var(--rv-ok-ink); border: 1px solid #86efac; }
+.doc-badge.warn { background: var(--rv-warn-bg); color: var(--rv-warn-ink); border: 1px solid #fcd34d; }
+.doc-badge.bad { background: var(--rv-bad-bg); color: var(--rv-bad-ink); border: 1px solid #fca5a5; }
 
-	/* ================= SUB-TITLE / SALE TYPE / AMOUNT WORDS ================= */
-	.doc-engtype { text-align: center; font-weight: 600; color: var(--label); margin-bottom: 6px; }
-	.doc-sale-type { text-align: center; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
-	.amount-in-words { border-top: 1px solid var(--border-strong); background: var(--bg-panel-alt); padding: 8px 12px; }
-	.aiv-label { color: var(--label); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; font-weight: bold; }
-	.aiv-value { font-weight: 700; font-style: italic; margin-top: 2px; }
+table.doc-head { width: 100%; border-collapse: collapse; border: 3px dashed var(--rv-brand); }
+table.doc-head td { vertical-align: middle; padding: 0 0 12px; }
+.doc-logo { width: 84px; padding-right: 16px; }
+.doc-logo img { width: 84px; height: auto; max-height: 72px; object-fit: contain; border: 1px solid var(--rv-line-soft); border-radius: 4px; }
+.rv-host.size-a5 .doc-logo, .rv-host.size-a5 .doc-logo img { width: 60px; }
+.doc-org-title { font-size: 20px; font-weight: 800; color: var(--rv-brand-dark); letter-spacing: -.01em; }
+.rv-host.size-a5 .doc-org-title { font-size: 15px; }
+.doc-org-sub { font-size: 12px; color: var(--rv-soft); }
+.rv-host.size-a5 .doc-org-sub { font-size: 10px; }
 
-	/* ================= FOOT GRID (PAYMENT / SELLER / RECEIVER) ================= */
-	.foot-grid { display: flex; border-top: 1px solid var(--border-strong); }
-	.foot-col { flex: 1; }
-	.foot-col + .foot-col { border-left: 1px solid var(--border-strong); }
-	.foot-head { background: var(--bg-panel); border-bottom: 1px solid var(--border-soft); padding: 8px 12px; font-weight: 700; font-size: 12px; }
-	.foot-body { padding: 12px; font-size: 12px; }
-	.sign { border-bottom: 1px solid var(--border-hair); padding-bottom: 3px; min-height: 16px; font-weight: 600; margin-top: 6px; }
+.doc-meta { width: 300px; border: 1px solid var(--rv-line); border-radius: 4px; overflow: hidden; }
+.rv-host.size-a5 .doc-meta { width: 215px; }
+.doc-meta table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.rv-host.size-a5 .doc-meta table { font-size: 10px; }
+.doc-meta th {
+	text-align: left; padding: 5px 10px; font-size: 9.5px; text-transform: uppercase;
+	letter-spacing: .05em; color: var(--rv-mute); background: #f8fafc;
+	border-bottom: 1px solid var(--rv-line-soft); width: 42%;
+}
+.doc-meta td { padding: 5px 10px; font-weight: 700; border-bottom: 1px solid var(--rv-line-soft); }
+.doc-meta tr:last-child th, .doc-meta tr:last-child td { border-bottom: none; }
 
-	/* ================= FOOTER ================= */
-	.reg-banner { text-align: center; font-style: italic; font-weight: 700; padding: 10px 12px; border-top: 1px solid var(--border-strong); font-size: 12px; }
-	.verify-line {
-		font-size: 10px; color: var(--label); letter-spacing: 1px; font-weight: bold;
-		text-transform: uppercase; text-align: center; margin: 14px 0 6px;
-	}
-	.receipt-foot { padding: 16px 26px 20px; background: var(--bg-panel-alt); border-top: 1px solid #e6e9ee; text-align: center; color: #8a94a6; font-size: 11px; }
-	.irn-chip {
-		display: inline-block; background: #eef2f7; color: var(--brand); font-family: Consolas, monospace;
-		font-size: 12px; padding: 4px 10px; border-radius: 4px; word-break: break-all;
-	}
+table.doc-fiscal { width: 100%; border-collapse: collapse; border-bottom: 1px solid var(--rv-line); }
+table.doc-fiscal td { vertical-align: top; padding: 12px 0; }
+.doc-fiscal-title { font-size: 20px; font-weight: 800; color: var(--rv-brand); line-height: 1.55; letter-spacing: -.01em; margin-bottom: 10%;}
+.rv-host.size-a5 .doc-fiscal-title { font-size: 16.5px; }
+.doc-fiscal-title small { display: block; font-size: 13.5px; color: var(--rv-soft); font-weight: 700; margin-top: 3px; }
+.rv-host.size-a5 .doc-fiscal-title small { font-size: 11.5px; }
+.doc-tag {
+	display: inline-block; padding: 2px 9px; border-radius: 3px; font-size: 16px;
+	font-weight: 800; background: var(--rv-brand-tint); color: var(--rv-brand-dark);
+	border: 1px solid #060606;
+}
+.doc-tag.gold { background: var(--rv-gold-tint); color: var(--rv-gold); border-color: #fde68a; }
+.doc-tag.dark { background: #0f172a; color: #fff; border-color: #0f172a; }
+.doc-irn { margin-top: 7px; font-family: "Consolas", "Courier New", monospace; font-size: 10.5px; word-break: break-all; }
+.rv-host.size-a5 .doc-irn { font-size: 9px; }
+.doc-irn b { color: var(--rv-brand-dark); }
 
-	/* ================= RECEIPT (THERMAL) ================= */
-	.receipt.thermal {
-		width: min(100%, 500px); max-width: 100%; margin: 0 auto;
-		background: #ffffff; border: 1px solid var(--border-soft); box-shadow: 0 4px 16px rgba(15,23,42,.08);
-		padding: 6mm 5mm; font-family: "Courier New", Consolas, monospace;
-		font-size: 13px; line-height: 1.55; color: #000;
-	}
-	#receipt-app.size-58 .receipt.thermal { max-width: 420px; font-size: 12px; padding: 5mm 4mm; }
+.doc-qr { width: 244px; text-align: center; padding-left: 14px; }
+.rv-host.size-a5 .doc-qr { width: 152px; }
+.rv-host.size-letter .doc-qr { width: 194px; }
+.doc-qr .frame, .th-qr .frame {
+	display: inline-block; padding: 10px; background: #fff;
+	border: 1px dashed var(--rv-line); border-radius: 6px; line-height: 0;
+	-webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.doc-qr img {
+	display: block; width: 220px; height: 220px; object-fit: contain;
+	image-rendering: auto;
+}
+.rv-host.size-a5 .doc-qr img { width: 128px; height: 128px; }
+.rv-host.size-letter .doc-qr img { width: 170px; height: 170px; }
+.doc-qr .rv-qr-none { padding: 26px 8px; font-size: 10px; color: var(--rv-mute); line-height: 1.4; }
+.doc-qr .cap { font-size: 9.5px; color: var(--rv-mute); margin-top: 6px; line-height: 1.35; }
 
-	.t-center { text-align: center; }
-	.t-bold { font-weight: 700; }
-	.t-name { font-size: 15px; font-weight: 700; margin: 3px 0; }
-	#receipt-app.size-58 .t-name { font-size: 14px; }
-	.t-small { font-size: 11px; }
+.doc-banner {
+	display: flex; align-items: center; justify-content: space-between;
+	background: var(--rv-brand); color: #fff; padding: 13px 18px; border-radius: 4px;
+}
+.rv-host.size-a5 .doc-banner { padding: 9px 13px; }
+.doc-banner .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; opacity: .85; }
+.doc-banner .val { font-size: 27px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rv-host.size-a5 .doc-banner .val { font-size: 20px; }
 
-	.t-sep { border-top: 1px dashed #000; margin: 6px 0; }
+.doc-band {
+	background: var(--rv-brand); color: #fff; font-size: 11px; font-weight: 800;
+	text-transform: uppercase; letter-spacing: .08em; padding: 5px 12px;
+}
+.rv-host.size-a5 .doc-band { font-size: 9.5px; padding: 4px 9px; }
 
-	.t-row { display: flex; justify-content: space-between; gap: 8px; }
-	.t-row .v { text-align: right; white-space: nowrap; }
+table.doc-parties { width: 100%; border-collapse: collapse; }
+table.doc-parties > tbody > tr > td { width: 50%; padding: 11px 14px; vertical-align: top; border-right: 1px solid var(--rv-line-soft); }
+table.doc-parties > tbody > tr > td:last-child { border-right: none; }
+table.doc-parties .p-head { font-size: 12px; font-weight: 800; color: var(--rv-brand-dark); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+.rv-host.size-a5 .doc-parties .p-head { font-size: 10.5px; }
+table.doc-parties .p-addr { font-size: 11.5px; color: var(--rv-soft); margin-bottom: 6px; }
+.rv-host.size-a5 table.doc-parties .p-addr { font-size: 10px; }
+table.doc-fields { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.rv-host.size-a5 table.doc-fields { font-size: 10px; }
+table.doc-fields td { padding: 3px 0; border-bottom: 1px dotted var(--rv-line-soft); }
+table.doc-fields tr:last-child td { border-bottom: none; }
+table.doc-fields .k { color: var(--rv-mute); width: 46%; }
+table.doc-fields .v { font-weight: 700; text-align: right; word-break: break-word; }
 
-	.t-item-grid { display: grid; grid-template-columns: 50% 16.6667% 16.6667% 16.6667%; gap: 4px; margin: 2px 0; align-items: baseline; }
-	.t-item-grid .name { font-weight: 700; word-break: break-word; padding-right: 6px; }
-	.t-item-grid .r { text-align: right; white-space: nowrap; }
-	.t-row-head { margin-top: 4px; font-weight: 700; font-size: 11px; margin-bottom: 2px; }
+table.doc-items { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rv-host.size-a5 table.doc-items { font-size: 10.5px; }
+table.doc-items th {
+	padding: 8px 9px; font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em;
+	color: #fff; background: var(--rv-brand); text-align: left; border-right: 1px solid rgba(255, 255, 255, .2);
+}
+table.doc-items th:last-child { border-right: none; }
+table.doc-items td { padding: 7px 9px; border-bottom: 1px solid var(--rv-line-soft); border-right: 1px solid var(--rv-line-soft); }
+table.doc-items td:last-child { border-right: none; }
+table.doc-items .n { width: 34px; text-align: center; color: var(--rv-mute); }
+table.doc-items .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.doc-items .desc { font-weight: 600; }
+table.doc-items tr.sub td { padding: 0 9px 5px 34px; border-bottom: 1px solid var(--rv-line-soft); font-size: 10px; color: var(--rv-mute); font-family: "Consolas", "Courier New", monospace; }
+table.doc-items tfoot td { padding: 0; border: none; }
 
-	.t-total { display: flex; justify-content: space-between; gap: 8px; margin: 1px 0; font-weight: 700; }
-	.t-total .label { font-weight: 700; }
-	.t-total .v { text-align: right; white-space: nowrap; }
+.doc-sum { display: flex; gap: 16px; padding: 13px 16px; align-items: flex-start; }
+.rv-host.size-a5 .doc-sum { gap: 11px; padding: 9px 11px; }
+.doc-words { flex: 1; font-size: 11.5px; }
+.rv-host.size-a5 .doc-words { font-size: 10px; }
+.doc-words .w-lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--rv-mute); font-weight: 800; }
+.doc-words .w-val { font-weight: 700; margin-top: 3px; font-style: italic; }
+.doc-words .w-note { font-size: 10px; color: var(--rv-mute); margin-top: 5px; line-height: 1.4; }
+table.doc-totals { width: 350px; border-collapse: collapse; font-size: 12px; }
+.rv-host.size-a5 table.doc-totals { width: 265px; font-size: 10.5px; }
+table.doc-totals td { padding: 5px 11px; border-bottom: 1px solid var(--rv-line-soft); }
+table.doc-totals .k { color: var(--rv-soft); }
+table.doc-totals .v { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.doc-totals tr.grand td {
+	font-size: 14px; font-weight: 800; color: var(--rv-brand-dark);
+	border-top: 2px solid var(--rv-brand); border-bottom: 2px solid var(--rv-brand); padding-top: 8px; padding-bottom: 8px;
+}
+table.doc-totals tr.grand .v { font-size: 16px; }
+table.doc-totals tr.wht td { background: var(--rv-gold-tint); color: var(--rv-warn-ink); font-weight: 700; }
+table.doc-totals tr.net td { background: var(--rv-brand-tint); }
+table.doc-totals tr.net td { font-size: 13px; font-weight: 800; color: var(--rv-brand-dark); }
+.rv-host.size-a5 table.doc-totals tr.net td { font-size: 11.5px; }
 
-	.t-status { text-align: center; font-weight: 700; padding: 6px 0; }
-	.t-status.bad { color: #b23b3b; }
-	.t-status.warn { color: #b8860b; }
+.doc-wht-note {
+	margin: 0 16px 13px; padding: 8px 12px; font-size: 11px;
+	background: var(--rv-gold-tint); border: 1px solid #fde68a; border-left: 3px solid var(--rv-gold);
+	color: var(--rv-warn-ink); line-height: 1.5;
+}
+.rv-host.size-a5 .doc-wht-note { font-size: 9.5px; margin: 0 11px 9px; }
 
-	.t-irn { font-size: 12px; word-break: break-all; margin: 6px 0; text-align: center; }
-	.t-thanks { text-align: center; font-style: italic; margin-top: 8px; font-weight: 700; }
+.doc-cov { padding: 11px 16px; }
+.rv-host.size-a5 .doc-cov { padding: 8px 11px; }
+table.doc-cov-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.rv-host.size-a5 table.doc-cov-table { font-size: 10px; }
+table.doc-cov-table th {
+	padding: 6px 9px; font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em;
+	color: var(--rv-mute); background: #f8fafc; border-bottom: 2px solid var(--rv-brand); text-align: left;
+}
+table.doc-cov-table td { padding: 6px 9px; border-bottom: 1px solid var(--rv-line-soft); }
+table.doc-cov-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.doc-pill { display: inline-block; padding: 2px 8px; border-radius: 9px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.doc-pill.full { background: var(--rv-ok-bg); color: var(--rv-ok-ink); }
+.doc-pill.partial { background: var(--rv-warn-bg); color: var(--rv-warn-ink); }
 
-	/* ================= PRINT TOOLBAR ================= */
-	.print-toolbar { max-width: 210mm; margin: 20px auto 0; padding: 0 12px; font-family: "Segoe UI", Helvetica, Arial, sans-serif; }
-	.print-toolbar .size-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d0d7de; border-radius: 8px; overflow: hidden; font-size: 13px; }
-	.print-toolbar .size-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #8a94a6; background: #f8f9fb; padding: 8px 12px; border-bottom: 1px solid #e6e9ee; }
-	.print-toolbar .size-table td { padding: 9px 12px; border-bottom: 1px solid #eef0f3; cursor: pointer; }
-	.print-toolbar .size-table tbody tr:last-child td { border-bottom: 0; }
-	.print-toolbar .size-table tbody tr:hover { background: #f6f9fd; }
-	.print-toolbar .size-table tbody tr.active { background: #eaf2fb; }
-	.print-toolbar .size-table tbody tr.active td:first-child { box-shadow: inset 3px 0 0 var(--brand); }
-	.print-toolbar .size-table .sz { font-weight: bold; color: #32363a; }
-	.print-toolbar .size-table .thermal .sz::after { content: "  \2022"; color: #b0b6bd; }
-	.print-toolbar .size-table .tag { display: inline-block; font-size: 10px; font-weight: bold; letter-spacing: .5px; text-transform: uppercase; padding: 1px 8px; border-radius: 10px; margin-left: 8px; }
-	.print-toolbar .size-table .tag.t-thermal { background: #eef2f7; color: #0a6ed1; }
-	.print-toolbar .size-table .tag.t-office { background: #2e7d5b; color: #fff; }
-	.print-toolbar .actions { margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-	.print-toolbar button { border: 0; cursor: pointer; padding: 10px 22px; border-radius: 4px; font-size: 13px; font-weight: bold; font-family: "Segoe UI", Helvetica, Arial, sans-serif; }
-	.print-toolbar button.dl { background: #0a6ed1; color: #fff; }
-	.print-toolbar button.pr { background: var(--brand); color: #fff; }
-	.print-toolbar button.hint { background: #f8f9fb; color: #6c757d; border: 1px solid #d0d7de; }
-	.print-toolbar .note { text-align: center; color: #8a94a6; font-size: 11px; margin-top: 8px; }
+table.doc-sign { width: 100%; border-collapse: separate; border-spacing: 22px 0; }
+.rv-host.size-a5 table.doc-sign { border-spacing: 12px 0; }
+table.doc-sign td { width: 33.33%; text-align: center; font-size: 11.5px; padding-top: 6px; }
+.rv-host.size-a5 table.doc-sign td { font-size: 10px; }
+.doc-sign .s-line { border-top: 1px solid var(--rv-ink); margin-bottom: 4px; height: 30px; }
+.rv-host.size-a5 .doc-sign .s-line { height: 22px; }
+.doc-sign .s-role { font-weight: 800; color: var(--rv-brand-dark); text-transform: uppercase; letter-spacing: .05em; font-size: 10px; }
+.doc-sign .s-name { font-weight: 700; }
+.doc-sign .s-cap { font-size: 9.5px; color: var(--rv-mute); }
 
-	#receipt-app.size-a4 .receipt { max-width: 210mm; }
-	#receipt-app.size-a5 .receipt { max-width: 148mm; }
-	#receipt-app.size-letter .receipt { max-width: 8.5in; }
-	#receipt-app.thermal-size { margin-top: 8px; }
+.doc-legal {
+	margin-top: 10px; border-top: 2px solid var(--rv-brand); padding: 10px 16px 4px;
+	font-size: 10.5px; color: var(--rv-soft); line-height: 1.6;
+}
+.rv-host.size-a5 .doc-legal { font-size: 9px; padding: 8px 11px 3px; }
+.doc-legal .lv { font-weight: 800; color: var(--rv-brand-dark); }
+.doc-legal a { color: var(--rv-brand); font-family: "Consolas", "Courier New", monospace; word-break: break-all; text-decoration: none; }
+.doc-legal .lfoot { margin-top: 5px; font-size: 9.5px; color: var(--rv-mute); }
 
-	.form-bar { max-width: 210mm; margin: 24px auto 0; padding: 0 12px; text-align: center; }
-	.form-bar input { padding: 9px 12px; border: 1px solid #d0d7de; border-radius: 4px; width: 70%; font-size: 13px; }
-	.form-bar button { padding: 9px 18px; margin-left: 6px; border: 0; background: var(--brand); color: #fff; border-radius: 4px; cursor: pointer; }
+.thermal {
+	font-family: "Consolas", "Courier New", "DejaVu Sans Mono", monospace;
+	font-size: 11px; line-height: 1.32; color: #000; background: #fff;
+	text-align: center; overflow-wrap: break-word; word-break: break-word;
+}
+.rv-host.size-58 .thermal { font-size: 9px; line-height: 1.28; }
 
-	@media print {
-		body { background: #fff; }
-		.form-bar, .print-toolbar { display: none !important; }
-		.receipt { box-shadow: none; border-color: #999; }
-		.receipt.thermal { border: none; }
-		.receipt.thermal { width: 80mm; max-width: 80mm !important; font-size: 11px !important; padding: 4mm 3mm !important; }
-		#receipt-app.size-58 .receipt.thermal { width: 58mm; max-width: 58mm !important; font-size: 10px !important; padding: 3mm 2mm !important; }
-		@page { size: A4; margin: 0; }
-		#receipt-app.thermal-size .receipt.thermal { width: 100% !important; max-width: 100% !important; }
-	}
-	@media screen {
-		#website-navbar, nav.navbar, .web-footer, .page-footer { display: none !important; }
-		.web-main, .main-section, .page-container, .container { padding-top: 8px !important; }
-	}
+.thermal .t-center { text-align: center; }
+.th-name { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; }
+.rv-host.size-58 .th-name { font-size: 10.5px; }
+.th-line { font-size: 10px; text-transform: uppercase; }
+.rv-host.size-58 .th-line { font-size: 8.5px; }
+.th-tel { font-size: 10px; font-weight: 700; }
+.rv-host.size-58 .th-tel { font-size: 8.5px; }
+.th-rule { border-top: 1px dashed #000; margin: 3px 0; }
+.th-fiscal { font-size: 11px; font-weight: 700; text-transform: uppercase; line-height: 1.25; }
+.rv-host.size-58 .th-fiscal { font-size: 9px; }
+.th-saletype { font-size: 10px; font-weight: 700; }
+.rv-host.size-58 .th-saletype { font-size: 8.5px; }
+.th-status { font-size: 10px; font-weight: 700; padding: 1px 0; }
+.rv-host.size-58 .th-status { font-size: 8.5px; }
+td.doc-fiscal-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.doc-fiscal-inner {
+  padding: 5% 10%; ;
+  text-align: left;
+  width: max-content;
+  border: 1px dashed #000;
+}
+.doc-fiscal-tags{
+  font-size: 18px;
+  font-weight: 700;
+ 
+}
+
+
+table.thermal-meta { width: 100%; border-collapse: collapse; font-size: 10px; text-align: left; }
+.rv-host.size-58 table.thermal-meta { font-size: 8.5px; }
+table.thermal-meta td { padding: 1px 0; }
+table.thermal-meta .k { text-transform: uppercase; font-weight: 700; white-space: nowrap; padding-right: 5px; }
+table.thermal-meta .v { text-align: right; word-break: break-all; }
+
+table.thermal-items { width: 100%; border-collapse: collapse; font-size: 10px; }
+.rv-host.size-58 table.thermal-items { font-size: 8.5px; }
+table.thermal-items th { padding: 2px 0; border-bottom: 1px solid #000; font-size: 9px; text-transform: uppercase; text-align: left; font-weight: 700; }
+.rv-host.size-58 table.thermal-items th { font-size: 7.5px; }
+table.thermal-items td { padding: 2px 0; vertical-align: top; }
+table.thermal-items th.num, table.thermal-items td.num { text-align: right; white-space: nowrap; }
+table.thermal-items .th-desc { text-align: left; white-space: normal; word-break: break-word; overflow-wrap: break-word; }
+table.thermal-items .th-trunc { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+table.thermal-items .th-sku { display: block; font-size: 8.5px; color: #444; }
+.rv-host.size-58 table.thermal-items .th-sku { font-size: 7px; }
+
+table.thermal-totals { width: 100%; border-collapse: collapse; font-size: 10px; }
+.rv-host.size-58 table.thermal-totals { font-size: 8.5px; }
+table.thermal-totals td { padding: 1px 0; }
+table.thermal-totals .k { text-transform: uppercase; font-weight: 700; white-space: nowrap; }
+table.thermal-totals .v { text-align: right; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.thermal-totals tr.th-grand td { font-size: 12px; font-weight: 800; padding-top: 3px; padding-bottom: 3px; border-top: 1px solid #000; border-bottom: 1px solid #000; }
+.rv-host.size-58 table.thermal-totals tr.th-grand td { font-size: 10px; }
+.th-words { font-size: 9px; font-style: italic; text-align: center; margin-top: 3px; }
+.rv-host.size-58 .th-words { font-size: 7.5px; }
+.th-qr { margin: 5px 0 4px; text-align: center; }
+.th-qr .frame { padding: 5px; border: 1px solid #000; border-radius: 0; }
+.th-qr img { display: block; width: 190px; height: 190px; image-rendering: auto; }
+.rv-host.size-58 .th-qr img { width: 130px; height: 130px; }
+.th-qr-cap { font-size: 9px; font-weight: 700; text-transform: uppercase; margin-top: 3px; }
+.rv-host.size-58 .th-qr-cap { font-size: 7.5px; }
+.th-foot { font-size: 10px; text-transform: uppercase; font-weight: 700; }
+.rv-host.size-58 .th-foot { font-size: 8.5px; }
+.th-sku-plain { font-size: 9.5px; text-align: center; word-break: break-all; }
+.rv-host.size-58 .th-sku-plain { font-size: 8px; }
+.all_document{
+  border: 0.5px dashed #000;
+}
+/* ════════════ PRINT ════════════ */
+@media print {
+	body { background: #fff; }
+	.rv-toolbar { display: none !important; }
+	.rv-wrap { max-width: none; padding: 0; }
+	.receipt { box-shadow: none !important; max-width: 100% !important; padding: 0 !important; }
+	.doc-party-cell { border-right: 1px solid var(--rv-line) !important; }
+	.doc-avoid { break-inside: avoid; page-break-inside: avoid; }
+	table.doc-items thead { display: table-header-group; }
+	.tr-break { break-before: page; page-break-before: always; }
+}
 </style>
 {% endblock %}
 
 {% block page_content %}
-<div class="receipt-wrap" id="receipt-app">
-	<noscript>
-		<div class="alert alert-warning">JavaScript is required to view the receipt.</div>
-	</noscript>
-	<div class="form-bar" id="irn-form" style="display:none;">
-		<input id="irn-input" placeholder="Enter the IRN printed on your receipt" autocomplete="off" />
-		<button onclick="loadReceipt()">Show Receipt</button>
+<div class="rv-wrap">
+
+<div class="rv-toolbar" id="rv-toolbar">
+	<div class="rv-bar">
+		<span class="rv-bar-title">Print &amp; Paper Setup</span>
+
+		<div class="rv-sizes" id="rv-size-table">
+			<button type="button" class="rv-size-row active" data-size="a4" onclick="selectSize('a4', this)" title="Laser / Inkjet"><b>A4</b><small>210×297 mm</small></button>
+			<button type="button" class="rv-size-row" data-size="a5" onclick="selectSize('a5', this)" title="Laser / Inkjet"><b>A5</b><small>148×210 mm</small></button>
+			<button type="button" class="rv-size-row" data-size="letter" onclick="selectSize('letter', this)" title="Laser / Inkjet"><b>Letter</b><small>8.5×11 in</small></button>
+			<button type="button" class="rv-size-row" data-size="80" onclick="selectSize('80', this)" title="POS Thermal"><b>80mm</b><small>POS Thermal</small></button>
+			<button type="button" class="rv-size-row" data-size="58" onclick="selectSize('58', this)" title="Portable Thermal"><b>58mm</b><small>Portable</small></button>
+		</div>
+
+		<span class="rv-mode-label" id="rv-mode-label">Document mode</span>
+
+		<div class="rv-actions">
+			<button type="button" class="rv-btn rv-btn-primary" onclick="printReceipt()">Print</button>
+			<button type="button" class="rv-btn" onclick="downloadPDF()">Download PDF</button>
+		</div>
 	</div>
-	<div class="receipt" id="receipt" style="display:none;"></div>
 </div>
+
+	<div class="rv-host size-a4" id="rv-host">
+		<div class="receipt" id="receipt">
+			<div style="padding:40px;text-align:center;color:#94a3b8;font-size:13px;">
+				Loading fiscal receipt…
+			</div>
+		</div>
+	</div>
+
+</div>
+
+<style id="page-size-css">
+	@page { size: 210mm 297mm; margin: 12mm; }
+</style>
 {% endblock %}
 
 {% block script %}
 <script>
+/* ══════════════════════════════════════════════════════════════
+   ETHIOPIAN FISCAL TAX INVOICE RECEIPT — DUAL RENDERING ENGINE
+   Cash Sales VAT/EXCISE TAX Invoice · Directive No. 1142/2026
+   Document mode : A4 · A5 · Letter
+   Thermal mode  : 80mm · 58mm
+   ══════════════════════════════════════════════════════════════ */
 
-	function esc(v) {
-		return String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-			.replace(/"/g, "&quot;");
-	}
-	
-	function fmt(n) {
-		if (n == null || n === "") return "-";
-		var num = Number(n);
-		if (isNaN(num)) return esc(n);
-		return num.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-	}
+var RV_SIZES = {
+	a4:     { mode: "document", label: "A4 (210 × 297 mm)",      css: "@page { size: 210mm 297mm; margin: 12mm; }" },
+	a5:     { mode: "document", label: "A5 (148 × 210 mm)",      css: "@page { size: 148mm 210mm; margin: 10mm; }" },
+	letter: { mode: "document", label: "Letter (8.5 × 11 in)",   css: "@page { size: 8.5in 11in; margin: 12mm; }" },
+	"80":   { mode: "thermal",  label: "80mm POS Thermal",       css: "@page { size: 80mm auto; margin: 0; }" },
+	"58":   { mode: "thermal",  label: "58mm Portable Thermal",  css: "@page { size: 58mm auto; margin: 0; }" }
+};
 
-	function badge(status) {
-		if (status === "Registered") return '<span class="status-badge ok">Registered / Authentic</span>';
-		if (status === "Cancelled") return '<span class="status-badge warn">Cancelled</span>';
-		return '<span class="status-badge bad">Not Registered</span>';
-	}
+var THERMAL_SIZES = ["80", "58"];
+var LOGO_URL = "/assets/ethiotel_pos/images/tele.jpg";
+var RV_DATA = null;
 
-	function currentSize() {
-		var app = document.getElementById("receipt-app");
-		var m = app.className.match(/\bsize-([a-z0-9]+)\b/);
-		return m ? m[1] : "a4";
-	}
-	function isThermal() { return currentSize() === "80" || currentSize() === "58"; }
+/* ─────────── helpers ─────────── */
+function esc(v) {
+	if (v === null || v === undefined) { return ""; }
+	return String(v).replace(/[&<>"']/g, function (c) {
+		return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+	});
+}
 
-	// -------------------------------------------------------------
-	// A4 / A5 / Letter — bordered document grid
-	// -------------------------------------------------------------
-	function detailsTable(rows) {
-		var html = '<table class="details">';
-		rows.forEach(function (r) {
-			html += '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>';
-		});
-		html += '</table>';
-		return html;
-	}
+function num(v) {
+	var n = parseFloat(v);
+	return isNaN(n) ? 0 : n;
+}
 
-	function infoPanel(title, defs) {
-		var html = '<div class="party"><div class="party-head">' + esc(title) + '</div><div class="party-body"><dl>';
-		defs.forEach(function (d) {
-			if (d[1] == null || d[1] === "") return;
-			html += '<dt>' + esc(d[0]) + '</dt><dd>' + esc(d[1]) + '</dd>';
-		});
-		html += '</dl></div></div>';
-		return html;
-	}
+function money(v) {
+	var n = num(v);
+	return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
-	function itemsBlock(items) {
-		if (!items || !items.length) return '<p style="color:#8a94a6;font-size:12px;padding:10px 14px;">No items.</p>';
-		var html = '<table class="items"><thead><tr>'
-			+ '<th style="width:5%;">ተ.ቁ / No.</th>'
-			+ '<th style="width:18%;">የዕቃው አይነት / Description</th>'
-			+ '<th style="width:9%;">መለኪያ / UoM</th>'
-			+ '<th class="num" style="width:8%;">ብዛት / Qty</th>'
-			+ '<th class="num" style="width:13%;">የአንዱ ዋጋ / Unit Price</th>'
-			+ '<th style="width:11%;">ታክስ ኮድ / Tax Code</th>'
-			+ '<th class="num" style="width:10%;">ቅናሽ / Disc.</th>'
-			+ '<th class="num" style="width:14%;">ጠቅላላ ዋጋ / Total Amount</th>'
-			+ '</tr></thead><tbody>';
-		items.forEach(function (it, i) {
-			html += '<tr>'
-				+ '<td>' + (i + 1) + '</td>'
-				+ '<td class="desc">' + esc(it.description || it.item_code) + '<div class="hst-muted">' + esc(it.item_code || "") + '</div></td>'
-				+ '<td>' + esc(it.uom || "") + '</td>'
-				+ '<td class="num">' + esc(it.quantity) + '</td>'
-				+ '<td class="num">' + fmt(it.rate) + '</td>'
-				+ '<td>' + esc(it.tax_code || "VAT15") + '</td>'
-				+ '<td class="num">' + fmt(it.discount_amount) + '</td>'
-				+ '<td class="num">' + fmt(it.amount) + '</td></tr>';
-		});
-		html += '</tbody></table>';
-		return html;
-	}
+function qty(v) {
+	var n = num(v);
+	return (Math.round(n * 100000) / 100000).toString();
+}
 
-	function moneyInWords(num) {
-		if (num == null || isNaN(num)) return "";
-		var ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-		var tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-		function tw(n) {
-			if (n < 20) return ones[n];
-			return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
+function thNum(v) {
+	/* Thermal fiscal format: asterisk-prefixed figures */
+	return "*" + money(v);
+}
+
+function pad(str, len) {
+	str = String(str === null || str === undefined ? "" : str);
+	while (str.length < len) { str += " "; }
+	return str;
+}
+
+function firstOf(arr) {
+	for (var i = 0; i < arr.length; i++) {
+		if (arr[i] !== null && arr[i] !== undefined && arr[i] !== "") { return arr[i]; }
+	}
+	return "";
+}
+
+/* ─────────── moneyInWords (pure JS) ─────────── */
+var RV_ONES = [
+	"Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+	"Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"
+];
+var RV_TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+var RV_SCALES = ["", "Thousand", "Million", "Billion", "Trillion"];
+
+function chunkToWords(n) {
+	var words = [];
+	if (n === 0) { return "Zero"; }
+	if (n < 20) { return RV_ONES[n]; }
+	if (n < 100) {
+		var t = RV_TENS[Math.floor(n / 10)];
+		var o = n % 10;
+		return o ? t + " " + RV_ONES[o] : t;
+	}
+	if (n < 1000) {
+		var h = RV_ONES[Math.floor(n / 100)];
+		var rest = n % 100;
+		return rest ? h + " Hundred " + chunkToWords(rest) : h + " Hundred";
+	}
+	return String(n);
+}
+
+function moneyInWords(amount, currency) {
+	var value = num(amount);
+	var sign = value < 0 ? "Minus " : "";
+	var abs = Math.abs(value);
+
+	var whole = Math.floor(abs + 1e-9);
+	var cents = Math.round((abs - whole) * 100);
+	if (cents === 100) { whole += 1; cents = 0; }
+
+	var parts = [];
+	var n = whole;
+	var i = 0;
+	while (n > 0) {
+		var g = n % 1000;
+		if (g) {
+			var w = chunkToWords(g);
+			if (RV_SCALES[i]) { w += " " + RV_SCALES[i]; }
+			parts.push(w);
 		}
-		function th(n) {
-			if (n < 100) return tw(n);
-			return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 ? " " + tw(n % 100) : "");
-		}
-		function words(n) {
-			if (n === 0) return "Zero";
-			var out = "";
-			var units = ["", " Thousand", " Million", " Billion"];
-			var i = 0;
-			while (n > 0) {
-				var part = n % 1000;
-				if (part) out = th(part) + units[i] + (out ? " " + out : "");
-				n = Math.floor(n / 1000);
-				i++;
-			}
-			return out;
-		}
-		var birr = Math.floor(num);
-		var cents = Math.round((num - birr) * 100);
-		var s = words(birr) + " Birr";
-		if (cents > 0) s += " and " + words(cents) + " Cents";
-		return s;
+		n = Math.floor(n / 1000);
+		i++;
 	}
 
-	function totalsBlock(t, currency) {
-		var html = '<div class="totals">';
-		html += '<div class="trow"><span>ድምር / Total</span><span>' + fmt((t.net_total || 0) + (t.discount || 0)) + '</span></div>';
-		html += '<div class="trow"><span>የቅናሽ መጠን / Discount Amount</span><span>' + fmt(t.discount || 0) + '</span></div>';
-		html += '<div class="trow"><span>የሚከፈልበት ድምር / Sub Total</span><span>' + fmt(t.net_total) + '</span></div>';
-		html += '<div class="trow"><span>ተ.እ.ታክስ / VAT</span><span>' + fmt(t.tax_total || 0) + '</span></div>';
-		html += '<div class="trow total"><span>ጠቅላላ ዋጋ ከታክስ ጋር / Total incl. Tax</span><span>' + fmt(t.grand_total) + '</span></div>';
-		html += '<div class="trow"><span>የተከፈለ / Paid</span><span>' + fmt(t.paid_amount) + '</span></div>';
-		html += '<div class="trow"><span>የቀረ መጠን / Due</span><span>' + fmt(t.outstanding_amount) + '</span></div>';
-		html += '<div class="trow total"><span>ተጣራ የሚከፈል / Net Payable</span><span>' + fmt(t.grand_total) + '</span></div>';
-		html += '</div>';
-		return html;
-	}
+	var out = sign + (parts.reverse().join(" ") || "Zero");
 
-	function sellerAddr(s) {
-		return [s && s.city, s && s.region ? "Region " + s.region : "", s && s.wereda ? "Woreda " + s.wereda : ""].filter(Boolean).join(", ") || null;
-	}
-	function buyerAddr(b) {
-		return [b && b.city, b && b.region ? "Region " + b.region : "", b && b.woreda ? "Woreda " + b.woreda : ""].filter(Boolean).join(", ") || null;
-	}
+	out += " " + (currency ? String(currency) : "Birr");
 
-	function renderA4(d) {
-		var cancelled = d.cancelled === true;
-		var org = (d.seller && (d.seller.legal_name || d.seller.trade_name)) || "Ethio Telecom";
-		var qr = d.qr_code_url
-			? '<img src="' + esc(d.qr_code_url) + '" alt="QR code" /><div class="qr-caption">Scan to verify</div>'
-			: '<span class="empty-qr">QR unavailable</span>';
-		var t = d.totals || {};
-		var seller = d.seller || {};
-		var buyer = d.buyer || {};
-		var payMethod = "CASH";
-		var currency = d.currency || "ETB";
+	out += cents ? " and " + chunkToWords(cents) + " Cents" : " Only";
 
-		var html = '<div class="receipt-doc">';
-		html += '<div class="status-row">' + badge(d.status) + '</div>';
+	return out.replace(/\s+/g, " ").trim();
+}
 
-		// ---- header ----
-		html += '<div class="doc-head-row">'
-			+ '<div class="doc-logo"><img src="/assets/ethiotel_pos/images/tele.jpg" alt="' + esc(org) + '" onerror="this.style.display=\'none\'" /></div>'
-			+ '<div class="doc-title-block"><div class="doc-subtitle">የደረሰኝ ቁጥር</div><div class="doc-company-name">' + esc(org) + '</div></div>'
-			+ '<div class="invoice-meta">'
-			+ '<div class="meta-row"><span>Invoice No:</span><span class="meta-value">' + esc(d.invoice_name || d.document_number || "-") + '</span></div>'
-			+ '<div class="meta-row"><span>ቀን / Date:</span><span class="meta-value">' + esc(d.document_date || "-") + '</span></div>'
-			+ '<div class="meta-row"><span>ሰአት / Time:</span><span class="meta-value">' + esc(d.posting_time || "-") + '</span></div>'
-			+ '</div>'
-			+ '</div>';
+/* ─────────── derived fiscal values ─────────── */
+var RV_CURRENCY_NAMES = { ETB: "Birr", USD: "US Dollars", EUR: "Euro" };
 
-		// ---- title / IRN / QR ----
-		html += '<div class="doc-subhead">'
-			+ '<div class="subhead-left">'
-			+ '<div class="doc-type">እጅ በእጅ የሽያጭ ደረሰኝ-ተእታ/ኤክሳይዝ ታክስ ኢንቮይስ</div>'
-			+ '<div class="doc-engtype">Cash Sales VAT/EXCISE TAX Invoice</div>'
-			+ '<div class="doc-sale-type">የሽያጭ አይነት (' + esc(d.sale_type || "B2B") + ')</div>'
-			+ '<div class="doc-irn"><span class="label">IRN: </span><span class="value">' + esc(d.irn || "") + '</span></div>'
-			+ '<div class="doc-sysnum"><span class="label">System Number: </span><span>' + esc(d.system_number || "") + '</span></div>'
-			+ '</div>'
-			+ '<div class="qr">' + qr + '</div>'
-			+ '</div>';
+function currencyInWords(code) {
+	var key = String(code || "ETB").toUpperCase();
+	return RV_CURRENCY_NAMES[key] || key;
+}
 
-		if (!cancelled) {
-			html += '<div class="amount-row"><div class="amount-label">TOTAL AMOUNT</div>'
-				+ '<div class="amount">' + fmt(t.grand_total) + ' ' + esc(currency) + '</div></div>';
-		}
+function fiscalModel(d) {
+	var t = d.totals || {};
+	var net = num(t.net_total);
+	var discount = num(t.discount);
+	var vat = num(t.tax_total);
+	var grand = num(t.grand_total);
+	var paid = num(t.paid_amount);
+	var withheld = num(d.withheld_amount);
+	var collectible = num(d.collectible_amount) || Math.max(grand - withheld, 0);
+	var outstanding = num(t.outstanding_amount) || Math.max(grand - paid, 0);
+	var netPayable = Math.max(grand - paid, 0);
 
-		// ---- parties ----
-		html += '<div class="parties">';
-		html += infoPanel("ከ / From", [
-			["Legal Name", seller.legal_name],
-			["Trade Name", seller.trade_name],
-			["አድራሻ / Address", sellerAddr(seller)],
-			["የሻጭ ስልክ / Seller's Phone", seller.phone],
-			["የሻጭ ኢሜይል / Seller's Email", seller.email],
-			["TIN", seller.tin],
-			["የሻጭ ተ.እ.ታ / VAT Reg.No", seller.vat_number]
-		]);
-		html += infoPanel("ለ / To", [
-			["Legal Name", buyer.legal_name],
-			["አድራሻ / Address", buyerAddr(buyer)],
-			["የገዢ ስልክ / Buyer's Phone", buyer.phone],
-			["የገዢ ኢሜይል / Buyer's Email", buyer.email],
-			["TIN", buyer.tin_number],
-			["የገዢ ተ.እ.ታ / VAT Reg.No", buyer.vat_number || buyer.tin_number]
-		]);
-		html += '</div>';
+	var cov = d.coverage || [];
+	var collectibleRemaining = cov.length
+		? cov.reduce(function (s, r) { return s + num(r.collectible_remaining_amount); }, 0)
+		: Math.max(collectible - paid, 0);
 
-		if (!cancelled) {
-			// ---- items ----
-			html += '<div class="section-title">የዕቃ ዝርዝር / Item Details</div>' + itemsBlock(d.items);
-			html += totalsBlock(t, currency);
-
-			// ---- amount in words ----
-			html += '<div class="amount-in-words"><span class="aiv-label">IN WORDS (ENGLISH)</span><div class="aiv-value">' + esc(moneyInWords(t.grand_total)) + '</div></div>';
-
-			// ---- mode / seller / receiver ----
-			html += '<div class="foot-grid">'
-				+ '<div class="foot-col"><div class="foot-head">የክፍያ ሁኔታ / Mode of Payment</div><div class="foot-body">' + esc(payMethod) + '</div></div>'
-				+ '<div class="foot-col"><div class="foot-head">የሻጭ መረጃ / Seller Information</div><div class="foot-body">የሻጭ ስምና ፊርማ / Seller Name &amp; Signature:<div class="sign">' + esc(seller.legal_name) + '</div></div></div>'
-				+ '<div class="foot-col"><div class="foot-head">የተቀባይ መረጃ / Receiver Information</div><div class="foot-body">የተቀባይ ስምና ፊርማ / Receiver Name &amp; Signature:<div class="sign">' + esc(buyer.legal_name || "") + '</div></div></div>'
-				+ '</div>';
-		} else {
-			html += '<p style="color:#b8860b;font-size:13px;text-align:center;padding:16px;">This invoice has been cancelled and is no longer valid.</p>';
-		}
-
-		html += '<div class="reg-banner">Thank you for choosing ' + esc(org) + '!</div>';
-		html += '</div>'; // .receipt-doc
-
-		html += '<div class="verify-line">Verify this document with the Ministry of Revenue using the IRN above</div>';
-		html += '<div class="receipt-foot">';
-		html += 'Invoice Reference Number (IRN): <span class="irn-chip">' + esc(d.irn || "") + '</span><br/><br/>';
-		html += 'This is an officially registered Ethiopian tax invoice under Directive No. 1142/2026.';
-		html += '<div style="margin-top:8px;overflow-wrap:anywhere;">Verify: ' + window.location.origin + '/invoice_receipt?irn=' + encodeURIComponent(d.irn || "") + '</div>';
-		html += '<div style="margin-top:12px;">&copy; ' + new Date().getFullYear() + ' ' + esc(org) + '. All rights reserved.</div>';
-		html += '</div>';
-
-		return html;
-	}
-
-	// -------------------------------------------------------------
-	// 80mm / 58mm — plain-text-style fiscal receipt
-	// -------------------------------------------------------------
-	function tSep() { return '<div class="t-sep"></div>'; }
-
-	function tRow(label, value) {
-		if (value == null || value === "") return "";
-		return '<div class="t-row"><span>' + esc(label) + '</span><span class="v">' + esc(value) + '</span></div>';
-	}
-
-	function tTotal(label, value) {
-		if (value == null) return "";
-		return '<div class="t-total"><span class="label">' + esc(label) + '</span><span class="v">*' + fmt(value) + '</span></div>';
-	}
-
-	function renderThermal(d) {
-		var cancelled = d.cancelled === true;
-		var ok = d.verified === true;
-		var t = d.totals || {};
-		var org = (d.seller && (d.seller.legal_name || d.seller.trade_name)) || "Ethio Telecom";
-		var addrParts = [d.seller && d.seller.city, d.seller && d.seller.region].filter(Boolean);
-		// append city, and region labels to addrParts
-		if (d.seller && d.seller.city) addrParts.push("City");
-		if (d.seller && d.seller.region) addrParts.push("Region");
-
-		
-
-		var html = '';
-
-		if (!ok && !cancelled) {
-			html += '<div class="t-status bad">*** NOT REGISTERED ***</div>';
-			html += '<div class="t-center t-small">No registered invoice found for<br/>IRN ' + esc(d.irn || "") + '</div>';
-			return html;
-		}
-
-		// ---- header ----
-		html += '<div class="t-center">';
-		if (d.seller && d.seller.tin) html += '<div>TIN: ' + esc(d.seller.tin) + '</div>';
-		html += '<div class="t-name">' + esc(org.toUpperCase()) + '</div>';
-		addrParts.forEach(function (p) { html += '<div>' + esc(p) + '</div>'; });
-		if (d.seller && d.seller.phone) html += '<div>TEL: ' + esc(d.seller.phone) + '</div>';
-		html += '</div>';
-
-		if (cancelled) {
-			html += tSep();
-			html += '<div class="t-status warn">*** INVOICE CANCELLED ***</div>';
-		} else {
-			html += '<div class="t-center" style="margin-top:4px;">';
-			html += '<div>' + esc(d.document_type_label || "Cash Sales VAT/EXCISE TAX Invoice") + '</div>';
-			if (d.sale_type) html += '<div>Sale Type (' + esc(d.sale_type) + ')</div>';
-			html += '</div>';
-		}
-		html += tSep();
-
-		// ---- meta ----
-		html += tRow("Receipt No:", d.document_number);
-		html += tRow("System No:", d.system_number);
-		html += tRow("Date:", d.document_date);
-		html += tRow("Time:", d.document_time);
-		if (d.buyer && d.buyer.tin_number) html += tRow("Buyer TIN:", d.buyer.tin_number);
-		if (d.buyer && d.buyer.legal_name) html += tRow("Customer:", d.buyer.legal_name);
-		html += tSep();
-
-		if (!cancelled) {
-			// ---- items ----
-			html += '<div class="t-item-grid t-row-head"><span>Description</span><span class="r">DSC</span><span class="r">Qty</span><span class="r">Price</span></div>';
-			(d.items || []).forEach(function (it) {
-				html += '<div class="t-item-grid">';
-				html += '<span class="name">' + esc(it.description || it.item_code) + '</span>';
-				html += '<span class="r">' + fmt(it.discount_amount != null ? it.discount_amount : (it.discount || 0)) + '</span>';
-				html += '<span class="r">' + fmt(it.quantity) + '</span>';
-				html += '<span class="r">' + fmt(it.rate) + '</span>';
-				html += '</div>';
-			});
-			html += tSep();
-
-			// ---- totals ----
-			html += tTotal("DSC", t.discount || 0);
-			html += tTotal("TXBL1", t.taxable_total != null ? t.taxable_total : t.net_total);
-			html += tTotal((t.tax_label || "VAT") + (t.tax_rate ? " (" + t.tax_rate + "%)" : ""), t.tax_total);
-			html += tTotal("TOTAL", t.grand_total);
-			html += tTotal(t.payment_type || "CASH", t.paid_amount != null ? t.paid_amount : t.grand_total);
-			html += tTotal("CHANGE", t.change_amount != null ? t.change_amount : 0);
-			html += tSep();
-
-			// ---- item count / cashier ----
-			html += '<div>ITEM #' + (d.items ? d.items.length : 0) + '</div>';
-			if (d.cashier) html += tRow("Cashier", d.cashier);
-			html += tSep();
-		}
-
-		// ---- footer ----
-		html += '<div class="t-irn">IRN: ' + esc(d.irn || "") + '</div>';
-		html += '<div class="t-thanks">Thank you for choosing ' + esc(org) + '!</div>';
-
-		return html;
-	}
-
-	// -------------------------------------------------------------
-	// dispatch
-	// -------------------------------------------------------------
-	function render(d) {
-		window.lastReceiptData = d;
-		var ok = d.verified === true;
-		var cancelled = d.cancelled === true;
-		var disp = document.getElementById("receipt");
-		disp.style.display = "block";
-
-		if (!ok && !cancelled && !isThermal()) {
-			disp.className = "receipt";
-			disp.innerHTML =
-				'<div class="receipt-doc" style="padding:40px;text-align:center;">' +
-				badge("Not Registered") +
-				'<p style="margin-top:12px;color:#8a94a6;">No registered invoice was found for IRN <b>' + esc(d.irn || "") + '</b>.</p></div>';
-			return;
-		}
-
-		if (isThermal()) {
-			disp.className = "receipt thermal";
-			disp.innerHTML = renderThermal(d);
-		} else {
-			disp.className = "receipt";
-			disp.innerHTML = renderA4(d);
-		}
-	}
-
-	function renderCurrent() {
-		if (window.lastReceiptData) render(window.lastReceiptData);
-	}
-
-	function loadReceipt() {
-		var irn = ($("#irn-input").val() || "").trim();
-		var disp = document.getElementById("receipt");
-		disp.style.display = "block";
-		disp.innerHTML = '<p style="text-align:center;color:#8a94a6;padding:24px;">Loading receipt&hellip;</p>';
-		frappe.call({
-			method: "ethiotel_pos.eims_verify_public.receipt_public",
-			args: { irn: irn, qr_payload: "" },
-			callback: function (r) { render(r.message || {}); },
-			error: function (r) {
-				var msg = (r && r.message) || "Receipt service unavailable.";
-				disp.innerHTML = '<div class="alert alert-danger">' + esc(msg) + '</div>';
-			}
-		});
-	}
-
-	frappe.ready(function () {
-		var params = new URLSearchParams(window.location.search);
-		var irn = params.get("irn") || "";
-		var qr = params.get("qr_payload") || "";
-
-		var PRINT_SIZES = {
-			a4:     { css: "@page { size: 210mm 297mm; margin: 12mm; }", thermal: false },
-			a5:     { css: "@page { size: 148mm 210mm; margin: 10mm; }", thermal: false },
-			letter: { css: "@page { size: 8.5in 11in; margin: 12mm; }",  thermal: false },
-			"80":   { css: "@page { size: 80mm auto; margin: 0; }",      thermal: true },
-			"58":   { css: "@page { size: 58mm auto; margin: 0; }",      thermal: true }
-		};
-
-		function setPrintSize(size) {
-			var app = document.getElementById("receipt-app");
-			app.className = app.className.replace(/\bsize-[a-z0-9]+\b/g, "").trim()
-				+ " size-" + size
-				+ (PRINT_SIZES[size] && PRINT_SIZES[size].thermal ? " thermal-size" : "");
-			var s = document.getElementById("page-size-css");
-			if (!s) { s = document.createElement("style"); s.id = "page-size-css"; document.head.appendChild(s); }
-			s.textContent = (PRINT_SIZES[size] ? PRINT_SIZES[size].css : PRINT_SIZES.a4.css);
-			document.querySelectorAll(".size-table .size-row").forEach(function (r) {
-				r.classList.toggle("active", r.getAttribute("data-size") === size);
-			});
-			renderCurrent();
-		}
-
-		$('<div class="print-toolbar">' +
-			'<table class="size-table">' +
-			'<thead><tr><th>Paper Size</th><th>Dimensions</th><th>Printer Type</th></tr></thead>' +
-			'<tbody>' +
-			'<tr class="size-row active" data-size="a4"><td class="sz">A4</td><td>210 &times; 297 mm</td><td><span class="tag t-office">Laser / Inkjet</span></td></tr>' +
-			'<tr class="size-row" data-size="a5"><td class="sz">A5</td><td>148 &times; 210 mm</td><td><span class="tag t-office">Laser / Inkjet</span></td></tr>' +
-			'<tr class="size-row" data-size="letter"><td class="sz">Letter</td><td>8.5 &times; 11 in</td><td><span class="tag t-office">Laser / Inkjet</span></td></tr>' +
-			'<tr class="size-row thermal" data-size="80"><td class="sz">80mm</td><td>80 mm (3.15 in)</td><td><span class="tag t-thermal">Thermal POS</span></td></tr>' +
-			'<tr class="size-row thermal" data-size="58"><td class="sz">58mm</td><td>58 mm (2.28 in)</td><td><span class="tag t-thermal">Thermal Portable</span></td></tr>' +
-			'</tbody></table>' +
-			'<div class="actions">' +
-			'<button class="dl" onclick="window.print()">Download PDF</button>' +
-			'<button class="pr" onclick="window.print()">Print</button>' +
-			'</div>' +
-			'<div class="note">Select a paper size above, then Download PDF or Print. Thermal sizes show a fiscal-receipt layout.</div>' +
-			'</div>').insertBefore(".receipt");
-		document.querySelectorAll(".size-table .size-row").forEach(function (r) {
-			r.addEventListener("click", function () {
-				setPrintSize(r.getAttribute("data-size"));
-			});
-		});
-		setPrintSize("a4");
-
-		if (irn || qr) {
-			var disp = document.getElementById("receipt");
-			disp.style.display = "block";
-			disp.innerHTML = '<p style="text-align:center;color:#8a94a6;padding:24px;">Loading receipt&hellip;</p>';
-			frappe.call({
-				method: "ethiotel_pos.eims_verify_public.receipt_public",
-				args: { irn: irn, qr_payload: qr },
-				callback: function (r) { render(r.message || {}); },
-				error: function (r) {
-					var msg = (r && r.message) || "Receipt service unavailable.";
-					disp.innerHTML = '<div class="alert alert-danger">' + esc(msg) + '</div>';
-				}
-			});
-		} else {
-			document.getElementById("irn-form").style.display = "block";
-		}
+	var itemCount = 0;
+	var totalQty = 0;
+	(d.items || []).forEach(function (it) {
+		itemCount += 1;
+		totalQty += num(it.quantity);
 	});
 
+	return {
+		net: net,
+		discount: discount,
+		subtotal: net,
+		vat: vat,
+		grand: grand,
+		paid: paid,
+		withheld: withheld,
+		collectible: collectible,
+		outstanding: outstanding,
+		netPayable: netPayable,
+		collectibleRemaining: collectibleRemaining,
+		itemCount: itemCount,
+		totalQty: totalQty,
+		change: Math.max(paid - collectible, 0),
+		currency: d.currency || "ETB",
+		words: moneyInWords(collectible || grand, currencyInWords(d.currency || "ETB"))
+	};
+}
+
+function statusOf(d) {
+	if (d.verified || d.status === "Registered" || d.status === "Active") {
+		return { text: "Registered / Authentic", cls: "ok" };
+	}
+	if (d.cancelled || d.status === "Cancelled") {
+		return { text: "Cancelled", cls: "warn" };
+	}
+	return { text: firstOf([d.status, "Not Registered"]), cls: "bad" };
+}
+
+/* ─────────── shared fragments ─────────── */
+function logoImg(extraClass) {
+	return '<img src="' + esc(LOGO_URL) + '" alt="' + esc(firstOf([(d_safe_logo_name()), "Organization Logo"])) + '"'
+		+ ' class="' + (extraClass || "") + '"'
+		+ ' onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" />'
+		+ '<span style="display:none;width:84px;height:72px;align-items:center;justify-content:center;'
+		+ 'border:1px dashed #cbd5e1;border-radius:4px;font-weight:800;color:#0f766e;font-size:18px;">'
+		+ esc(initials(d_safe_seller())) + '</span>';
+}
+
+function d_safe_seller() { return (RV_DATA && RV_DATA.seller) || {}; }
+function d_safe_logo_name() { return d_safe_seller().legal_name || ""; }
+
+function initials(o) {
+	var src = firstOf([o.trade_name, o.legal_name]) || "ET";
+	var parts = String(src).split(/[\s,]+/).filter(Boolean);
+	if (parts.length === 1) { return parts[0].slice(0, 2).toUpperCase(); }
+	return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+}
+
+/* If the stored QR image cannot load, keep the frame so the receipt still
+   shows a placeholder instead of a silently blank cell. */
+function rvQrFallback(img) {
+	var frame = img && img.parentNode;
+	if (!frame) { return; }
+	frame.innerHTML = '<span style="display:block;padding:18px 4px;font-size:9px;line-height:1.4;'
+		+ 'color:#94a3b8;font-family:inherit;">QR image unavailable</span>';
+}
+
+/* Sized so the printed code keeps at least a 4-module quiet zone and stays
+   scannable at POS terminal distance. */
+function qrBlock(d, caption) {
+	if (!d.qr_code_url) { return ""; }
+	return '<div class="frame"><img src="' + esc(d.qr_code_url) + '" alt="Fiscal verification QR code"'
+		+ ' onerror="rvQrFallback(this);" /></div>'
+		+ (caption ? '<div class="cap">' + caption + '</div>' : "");
+}
+
+function fieldRows(rows) {
+	var out = "";
+	rows.forEach(function (r) {
+		out += '<tr><td class="k">' + esc(r[0]) + '</td><td class="v">' + esc(r[1]) + '</td></tr>';
+	});
+	return out;
+}
+
+function addressLines(o) {
+	var parts = [];
+	var locality = firstOf([o.locality, o.kebele]);
+	var subCity = firstOf([o.sub_city, o.zone]);
+	var house = firstOf([o.house_number]);
+	if (house) { parts.push("House No. " + house); }
+	if (locality) { parts.push(locality); }
+	if (subCity) { parts.push("Sub City: " + subCity); }
+	if (o.woreda) { parts.push("Woreda: " + o.woreda); }
+	if (o.city) { parts.push("City: " + o.city); }
+	if (o.region) { parts.push(o.region); }
+	if (o.country) { parts.push(o.country); }
+	return parts;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DOCUMENT MODE  —  renderA4()
+   ══════════════════════════════════════════════════════════════ */
+function renderA4(d) {
+	var m = fiscalModel(d);
+	var st = statusOf(d);
+	var s = d.seller || {};
+	var b = d.buyer || {};
+	var items = d.items || [];
+	var cov = d.coverage || [];
+	var cur = m.currency;
+
+	var html = "";
+
+	/* ── 1. Document header ── */
+	html += '<div class="all_document"><div class="doc-avoid">';
+	html += '<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">'
+		+ '<span class="doc-badge ' + st.cls + '">' + esc(st.text) + '</span></div>';
+
+	html += '<table class="doc-head"><tr>';
+	html += '<td class="doc-logo">' + logoImg() + '</td>';
+	html += '<td>'
+		+ '<div class="doc-org-title">' + esc(firstOf([s.trade_name, s.legal_name, "Ethio Telecom"])) + '</div>'
+		+ '<div class="doc-org-sub">POWERED BY ETHIO TELECOM</div>'
+		+ '<div class="doc-org-sub">' + esc(addressLines(s).join(", ") || firstOf([s.phone, s.email])) + '</div>'
+		+ '<div class="doc-org-sub">ስልክ ቁጥር/ TEL: ' + esc(s.phone || "—")
+		+ ' &nbsp;·&nbsp; ኢሜይል / Email: ' + esc(s.email || "—") + '</div>'
+		+ '</td>';
+	html += '<td style="width:300px;">';
+	html += '<div class="doc-meta"><table>';
+	html += '<tr><th>' + (d.is_receipt ? "የክፍያ ደረሰኝ ቁጥር / Receipt No." : "የደረሰኝ ቁጥር / Invoice No.") + '</th><td>'
+		+ esc(firstOf([d.document_number, d.invoice_name])) + '</td></tr>';
+	html += '<tr><th>ቀን / Date</th><td>' + esc(firstOf([d.document_date, d.receipt_date])) + '</td></tr>';
+	html += '<tr><th>ሰአት / Time</th><td>' + esc(d.posting_time || "—") + '</td></tr>';
+	if (d.receipt_type) { html += '<tr><th>የክፍያ አይነት / Type</th><td>' + esc(d.receipt_type) + '</td></tr>'; }
+	html += '<tr><th>የክፍያ ዘዴ / Payment</th><td>' + esc(d.mode_of_payment || "CASH") + '</td></tr>';
+	html += '</table></div></td>';
+	html += '</tr></table></div>';
+
+	/* ── 2. Fiscal subhead ── */
+/* ── 2. Fiscal subhead ── */
+	html += '<div class="doc-avoid"><table class="doc-fiscal"><tr>';
+	html += '<td class="doc-fiscal-info">';
+	// ── ADDED: This wrapper div handles the centering ──
+	html += '<div class="doc-fiscal-inner">';
+	html += '<div class="doc-fiscal-title">እጅ በእጅ የሽያጭ ደረሰኝ-ተ.እ.ታ/ኤክሳይዝ ታክስ ኢንቮይስ'
+		+ '<small>Cash Sales VAT/EXCISE TAX Invoice</small></div>';
+	html += '<div class="doc-fiscal-tags">';
+	html += '<span class="doc-tag">የሽያጭ አይነት / Sale Type: ' + esc(firstOf([d.sale_type, "B2C"])) + '</span>';
+	if (d.is_receipt) { html += '<span class="doc-tag gold">' + esc(d.receipt_type || "Sales Receipts") + '</span>'; }
+	html += '<span class="doc-tag dark">ተ.እ.ታ / VAT 15%</span>';
+	html += '</div>';
+	html += '<div class="doc-irn"><b>IRN / የሰነድ መዝገብ ቁጥር:</b> ' + esc(firstOf([d.irn, "N/A"])) + '</div>';
+	html += '<div class="doc-irn"><b>System Number / የሲስተም ቁጥር:</b> ' + esc(firstOf([d.system_number, "N/A"])) + '</div>';
+	// ── ADDED: Close the wrapper div ──
+	html += '</div>';
+	html += '</td>';
+	html += '<td class="doc-qr">';
+	if (d.qr_code_url) {
+		html += qrBlock(d, "Scan to verify against MoR<br />ለማረጋገጫ ይቃኑ");
+	} else {
+		html += '<div class="frame rv-qr-none">QR not available</div>';
+	}
+	html += '</td></tr></table></div>';
+
+
+	/* ── 3. Total banner ── */
+	html += '<div class="doc-banner doc-avoid" style="margin-top:12px;">'
+		+ '<span class="lbl">ጠቅላላ ድምር / Grand Total (incl. Tax)</span>'
+		+ '<span class="val">' + esc(money(m.grand)) + ' ' + esc(cur) + '</span>'
+		+ '</div>';
+
+	/* ── 4. Parties grid ── */
+	html += '<div style="margin-top:14px;"><div class="doc-band">ከ/ወደ / From &amp; To</div>';
+	html += '<table class="doc-parties"><tr>';
+	html += '<td class="doc-party-cell">';
+	html += '<div class="p-head">ከ / From — ሻጭ (Seller)</div>';
+	html += '<div class="p-addr">' + esc(addressLines(s).join(", ") || "—") + '</div>';
+	html += '<table class="doc-fields">' + fieldRows([
+		["የሻጭ ህጋዊ ስም / Legal Name", s.legal_name],
+		["የግብይት ስም / Trade Name", s.trade_name],
+		["የስልክ ቁጥር / Phone", s.phone],
+		["ኢሜይል / Email", s.email],
+		["TIN / ታክስ መለያ ቁጥር", s.tin],
+		["VAT Reg. No. / ታክስ ምዝገባ ቁጥር", s.vat_number]
+	]) + '</table></td>';
+
+	html += '<td class="doc-party-cell">';
+	html += '<div class="p-head">ወደ / To — ገዢ (Buyer)</div>';
+	html += '<div class="p-addr">' + esc(addressLines(b).join(", ") || "—") + '</div>';
+	html += '<table class="doc-fields">' + fieldRows([
+		["የገዥ ህጋዊ ስም / Legal Name", b.legal_name],
+		["የስልክ ቁጥር / Phone", b.phone],
+		["ኢሜይል / Email", b.email],
+		["TIN / ታክስ መለያ ቁጥር", b.tin_number],
+		["VAT Reg. No. / ታክስ ምዝገባ ቁጥር", b.tin_number],
+		["የመታወቂያ አይነት / ID Type", b.id_type],
+		["የመታወቂያ ቁጥር / ID No.", b.id_number]
+	]) + '</table></td>';
+	html += '</tr></table></div>';
+
+	/* ── 5. Bilingual items table ── */
+	html += '<div style="margin-top:14px;"><div class="doc-band">የዕቃው ዝርዝር / Items</div>';
+	html += '<table class="doc-items"><thead><tr>';
+	html += '<th class="n">ተ.ቁ / No.</th>';
+	html += '<th>የዕቃው አይነት / Description</th>';
+	html += '<th>መለኪያ / UoM</th>';
+	html += '<th class="num">ብዛት / Qty</th>';
+	html += '<th class="num">የአንዱ ዋጋ / Unit Price</th>';
+	html += '<th>ታክስ ኮድ / Tax Code</th>';
+	html += '<th class="num">ቅናሽ / Disc.</th>';
+	html += '<th class="num">ጠቅላላ ዋጋ / Total Amount</th>';
+	html += '</tr></thead><tbody>';
+	if (items.length) {
+		items.forEach(function (it, i) {
+			html += '<tr>';
+			html += '<td class="n">' + (i + 1) + '</td>';
+			html += '<td class="desc">' + esc(firstOf([it.description, it.item_code, "—"])) + '</td>';
+			html += '<td>' + esc(it.uom || "—") + '</td>';
+			html += '<td class="num">' + esc(qty(it.quantity)) + '</td>';
+			html += '<td class="num">' + esc(money(it.rate)) + '</td>';
+			html += '<td>' + esc(firstOf([it.tax_code, "—"])) + '</td>';
+			html += '<td class="num">' + esc(num(it.discount_amount) ? money(it.discount_amount) : "—") + '</td>';
+			html += '<td class="num">' + esc(money(it.amount)) + '</td>';
+			html += '</tr>';
+			if (it.item_code) {
+				html += '<tr class="sub"><td></td><td colspan="7">SKU / Item Code: ' + esc(it.item_code) + '</td></tr>';
+			}
+		});
+	} else {
+		html += '<tr><td class="n">—</td><td colspan="7" style="color:#94a3b8;">No item lines on this document.</td></tr>';
+	}
+	html += '</tbody></table></div>';
+
+	/* ── 6. Totals & financial summary ── */
+	html += '<div style="margin-top:14px;"><div class="doc-band">የክፍያ ማጠቃለያ / Financial Summary</div>';
+	html += '<div class="doc-sum">';
+	html += '<div class="doc-words">';
+	html += '<div class="w-lbl">በቃላት የተጻፈ መጠን / Amount in Words</div>';
+	html += '<div class="w-val">' + esc(m.words) + '</div>';
+	html += '<div class="w-note">አጠቃላይ ክፍያ ማብራሪያ። Total computed from item lines above. '
+		+ 'Tax withheld by the buyer, where applicable, is shown separately below and is not part of the net payable.</div>';
+	html += '</div>';
+
+	html += '<table class="doc-totals"><tbody>';
+	html += '<tr><td class="k">የተጣራ ድምር / Net Total</td><td class="v">' + esc(money(m.net)) + '</td></tr>';
+	html += '<tr><td class="k">ቅናሽ / Discount Amount</td><td class="v">' + esc(money(m.discount)) + '</td></tr>';
+	html += '<tr><td class="k">ታክስ (15%) / VAT</td><td class="v">' + esc(money(m.vat)) + '</td></tr>';
+	html += '<tr class="grand"><td class="k">ጠቅላላ ድምር / Total incl. Tax</td><td class="v">' + esc(money(m.grand)) + '</td></tr>';
+	if (m.withheld > 0) {
+		html += '<tr class="wht"><td class="k">በገዢ የተያዘ ታክስ / Tax Withheld</td><td class="v">−' + esc(money(m.withheld)) + '</td></tr>';
+		html += '<tr class="net"><td class="k">ጠቅላላ ተሰብሳቢ / Collectible</td><td class="v">' + esc(money(m.collectible)) + '</td></tr>';
+	}
+	html += '<tr><td class="k">የተከፈለ መጠን / Paid Amount</td><td class="v">' + esc(money(m.paid)) + '</td></tr>';
+	html += '<tr><td class="k">ያልተከፈለ / Due</td><td class="v">' + esc(money(m.outstanding)) + '</td></tr>';
+	html += '<tr class="net"><td class="k">ቀሪ የሚከፈል / Net Payable</td><td class="v">' + esc(money(m.netPayable)) + ' ' + esc(cur) + '</td></tr>';
+	html += '</tbody></table>';
+	html += '</div>';
+
+	if (m.withheld > 0) {
+		html += '<div class="doc-wht-note">የተያዘ ታክስ ማስታወሻ / Tax Withholding Notice: '
+			+ 'A withholding of <strong>' + esc(money(m.withheld)) + ' ' + esc(cur) + '</strong> was deducted from the '
+			+ 'registered total of ' + esc(money(m.grand)) + ' ' + esc(cur) + '. The net amount collectible by the seller is '
+			+ '<strong>' + esc(money(m.collectible)) + ' ' + esc(cur) + '</strong>. The withheld tax is remitted by the buyer '
+			+ 'to the tax authority as required under Directive No. 1142/2026.</div>';
+	}
+	html += '</div>';
+
+	/* ── Coverage (payment settlement detail) ── */
+	if (cov.length) {
+		html += '<div style="margin-top:14px;"><div class="doc-band">የክፍያ ሽፋን / Payment Coverage</div>';
+		html += '<div class="doc-cov"><table class="doc-cov-table"><thead><tr>';
+		html += '<th>የደረሰኝ ቁጥር / Invoice</th>';
+		html += '<th>ሁኔታ / Status</th>';
+		html += '<th class="num">የተመዘገበ / Registered</th>';
+		html += '<th class="num">የዚህ ክፍያ / This Receipt</th>';
+		html += '<th class="num">ያልተከፈለ ወይም ከዚ በፊት የተከፈለ / Paid / Remaining</th>';
+		html += '</tr></thead><tbody>';
+		cov.forEach(function (r) {
+			var full = String(firstOf([r.collectible_coverage, r.payment_coverage])).toUpperCase() === "FULL";
+			html += '<tr><td>' + esc(firstOf([r.invoice, "—"])) + '</td>';
+			html += '<td><span class="doc-pill ' + (full ? "full" : "partial") + '">' + (full ? "Full" : "Partial") + '</span></td>';
+			html += '<td class="num">' + esc(money(r.total_amount)) + '</td>';
+			html += '<td class="num">' + esc(money(firstOf([r.receipt_paid_amount, r.mor_collected_amount]))) + '</td>';
+			html += '<td class="num">' + esc(money(firstOf([r.collectible_remaining_amount, r.remaining_amount]))) + ' <span style="font-size: 0.85em; color: var(--rv-soft);">(' + (full ? "Paid" : "Remaining") + ')</span></td>';
+			html += '</tr>';
+		});
+		html += '</tbody></table></div></div>';
+	}
+
+	/* ── 7. Signatures & legal footer ── */
+	html += '<div class="doc-avoid" style="margin-top:16px;">';
+	html += '<table class="doc-sign"><tr>';
+	html += '<td><div class="s-line"></div><div class="s-role">የክፍያ ዘዴ / Mode of Payment</div>'
+		+ '<div class="s-name">' + esc(d.mode_of_payment || "CASH") + '</div>'
+		+ '<div class="s-cap">' + esc(m.currency) + ' ' + esc(money(m.paid)) + '</div></td>';
+	html += '<td><div class="s-line"></div><div class="s-role">የሻጭ ስም እና ፊርማ / Seller Name &amp; Signature</div>'
+		+ '<div class="s-name">' + esc(firstOf([d.seller && d.seller.trade_name, d.seller && d.seller.legal_name, "—"])) + '</div>'
+		+ '<div class="s-cap">TIN ' + esc(firstOf([d.seller && d.seller.tin, "—"])) + '</div></td>';
+	html += '<td><div class="s-line"></div><div class="s-role">የተቀበለው ስም እና ፊርማ / Receiver Name &amp; Signature</div>'
+		+ '<div class="s-name">' + esc(firstOf([d.cashier, d.buyer && d.buyer.legal_name, "—"])) + '</div>'
+		+ '<div class="s-cap">ካሽየር / Cashier</div></td>';
+	html += '</tr></table></div>';
+
+	html += '<div class="doc-legal">';
+	html += '<span class="lv">ስለ ህግ ተገዥነት / Statutory Notice:</span> ';
+	html += 'This is a computer-generated fiscal document issued under Ministry of Revenue Directive No. 1142/2026. '
+		+ 'It is valid only when the IRN shown above matches the record held by the Ministry of Revenue and the QR '
+		+ 'verification returns <em>Registered / Authentic</em>. Any alteration voids this receipt. '
+		+ 'ይህ በገቢዎች ሚኒስቴር የታክስ መመሪያ ቁጥር 1142/2026 ስር የተዘጋጀ በኮምፒዩተር የተሰራ የሽያጭ ደረሰኝ ነው።';
+	html += '<div class="lfoot">ማረጋገጫ / Verify: '
+		+ '<a href="' + esc(verificationLink(d)) + '">' + esc(verificationLink(d)) + '</a></div>';
+	html += '<div class="lfoot">This receipt was generated electronically by ' + esc(d.seller && d.seller.legal_name || "Ethio Telecom")
+		+ ' · System Number ' + esc(firstOf([d.system_number, "N/A"]))
+		+ ' · ' + esc(firstOf([d.document_date, d.receipt_date])) + ' ' + esc(d.posting_time || "") + '</div>';
+	html += '</div>';
+
+	html += '</div></div>'; /* /doc */
+	return html;
+}
+
+function verificationLink(d) {
+	var irn = firstOf([d.irn, d.document_number]);
+	return window.location.origin + "/invoice_receipt?irn=" + encodeURIComponent(irn);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   THERMAL TICKER MODE  —  renderThermal()
+   ══════════════════════════════════════════════════════════════ */
+function renderThermal(d) {
+	var m = fiscalModel(d);
+	var st = statusOf(d);
+	var s = d.seller || {};
+	var b = d.buyer || {};
+	var items = d.items || [];
+	var cur = m.currency;
+	var addr = addressLines(s);
+
+	var html = "";
+
+	/* ── 1. Compact fiscal header ── */
+	html += '<div class="th-center">';
+	html += '<div class="th-line">' + esc(firstOf([s.tin, "TIN: N/A"])) + '</div>';
+	html += '<div class="th-name">' + esc(String(firstOf([s.trade_name, s.legal_name, "ETHIO TELECOM"])).toUpperCase()) + '</div>';
+	if (addr[0]) { html += '<div class="th-line">' + esc(addr[0]) + '</div>'; }
+	if (addr[1]) { html += '<div class="th-line">' + esc(addr[1]) + '</div>'; }
+	if (addr[2]) { html += '<div class="th-line">' + esc(addr[2]) + '</div>'; }
+	if (addr[3]) { html += '<div class="th-line">' + esc(addr[3]) + '</div>'; }
+	if (s.phone) { html += '<div class="th-tel">TEL: ' + esc(s.phone) + '</div>'; }
+	html += '<div class="th-rule"></div>';
+	html += '<div class="th-fiscal">' + esc(firstOf([d.document_number, d.invoice_name, "RECEIPT"])) + '</div>';
+	html += '<div class="th-saletype">SALE TYPE: ' + esc(firstOf([d.sale_type, "B2C"])) + '</div>';
+	html += '<div class="th-fiscal">CASH SALES VAT/EXCISE</div>';
+	html += '<div class="th-fiscal">TAX INVOICE</div>';
+	html += '<div class="th-rule"></div>';
+	html += '<div class="th-status">' + esc(st.text) + '</div>';
+	html += '<div class="th-rule"></div>';
+	html += '</div>';
+
+	/* ── 2. Compact meta block ── */
+	html += '<table class="thermal-meta">';
+	html += '<tr><td class="k">RCP NO:</td><td class="v">' + esc(firstOf([d.document_number, d.invoice_name, "—"])) + '</td></tr>';
+	html += '<tr><td class="k">SYS NO:</td><td class="v">' + esc(firstOf([d.system_number, "—"])) + '</td></tr>';
+	html += '<tr><td class="k">DATE:</td><td class="v">' + esc(firstOf([d.document_date, d.receipt_date, "—"])) + '</td></tr>';
+	html += '<tr><td class="k">TIME:</td><td class="v">' + esc(d.posting_time || "—") + '</td></tr>';
+	html += '<tr><td class="k">CUST:</td><td class="v">' + esc(firstOf([b.legal_name, "WALK-IN"])) + '</td></tr>';
+	html += '<tr><td class="k">BUYER TIN:</td><td class="v">' + esc(firstOf([b.tin_number, "—"])) + '</td></tr>';
+	html += '<tr><td class="k">PAY:</td><td class="v">' + esc(d.mode_of_payment || "CASH") + '</td></tr>';
+	html += '</table>';
+	html += '<div class="th-rule"></div>';
+
+	/* ── 3. Thermal items grid ── */
+	html += '<table class="thermal-items"><thead><tr>';
+	html += '<th>DESCRIPTION</th><th class="num">DSC</th><th class="num">QTY</th><th class="num">PRICE</th>';
+	html += '</tr></thead><tbody>';
+	if (items.length) {
+		items.forEach(function (it) {
+			var label = firstOf([it.description, it.item_code, "—"]);
+			html += '<tr>';
+			html += '<td class="th-desc"><span class="th-trunc">' + esc(label) + '</span>'
+				+ (it.item_code ? '<span class="th-sku">' + esc(it.item_code) + '</span>' : "") + '</td>';
+			html += '<td class="num">' + (num(it.discount_amount) ? money(it.discount_amount) : "") + '</td>';
+			html += '<td class="num">' + esc(qty(it.quantity)) + '</td>';
+			html += '<td class="num">' + esc(money(it.rate)) + '</td>';
+			html += '</tr>';
+		});
+	} else {
+		html += '<tr><td class="th-desc">NO ITEMS</td><td class="num"></td><td class="num"></td><td class="num"></td></tr>';
+	}
+	html += '</tbody></table>';
+	html += '<div class="th-rule"></div>';
+
+	/* ── 4. Thermal totals (asterisk-prefixed) ── */
+	html += '<table class="thermal-totals">';
+	html += '<tr><td class="k">DSC</td><td class="v">' + thNum(m.discount) + '</td></tr>';
+	html += '<tr><td class="k">TXBL1</td><td class="v">' + thNum(m.subtotal) + '</td></tr>';
+	html += '<tr><td class="k">VAT (15%)</td><td class="v">' + thNum(m.vat) + '</td></tr>';
+	if (m.withheld > 0) {
+		html += '<tr><td class="k">WHTD TX</td><td class="v">' + thNum(m.withheld) + '</td></tr>';
+	}
+	html += '<tr class="th-grand"><td class="k">TOTAL</td><td class="v">' + thNum(m.grand) + '</td></tr>';
+	html += '<tr><td class="k">CASH</td><td class="v">' + thNum(m.paid) + '</td></tr>';
+	if (m.change > 0) {
+		html += '<tr><td class="k">CHANGE</td><td class="v">' + thNum(m.change) + '</td></tr>';
+	}
+	if (m.outstanding > 0) {
+		html += '<tr><td class="k">DUE</td><td class="v">' + thNum(m.outstanding) + '</td></tr>';
+	}
+	html += '</table>';
+	html += '<div class="th-words">' + esc(m.words) + '</div>';
+
+	if (m.withheld > 0) {
+		html += '<div class="th-rule"></div>';
+		html += '<div class="th-line">TAX WITHHELD: ' + esc(money(m.withheld)) + ' ' + esc(cur) + '</div>';
+		html += '<div class="th-line">COLLECTIBLE: ' + esc(money(m.collectible)) + ' ' + esc(cur) + '</div>';
+		html += '<div class="th-rule"></div>';
+	}
+
+	/* ── 5. Footer information ── */
+	if (d.qr_code_url) {
+		html += '<div class="th-rule"></div>';
+		html += '<div class="th-qr">' + qrBlock(d) + '<div class="th-qr-cap">Scan to verify / በማረጋገጫ</div></div>';
+		html += '<div class="th-rule"></div>';
+	}
+
+	html += '<div class="th-center">';
+	html += '<div class="th-foot">ITEM #' + m.itemCount + '</div>';
+	html += '<div class="th-line">QTY TOTAL: ' + esc(qty(m.totalQty)) + '</div>';
+	html += '<div class="th-line">CASHIER: ' + esc(firstOf([d.cashier, "—"])) + '</div>';
+	html += '<div class="th-line">SELLER TIN: ' + esc(firstOf([s.tin, "—"])) + '</div>';
+	html += '<div class="th-rule"></div>';
+	html += '<div class="th-sku-plain">' + esc(firstOf([d.irn, "IRN: N/A"])) + '</div>';
+	html += '<div class="th-rule"></div>';
+	html += '<div class="th-foot">THANK YOU FOR YOUR BUSINESS</div>';
+	html += '<div class="th-line">እናመሰግናለን / THANK YOU</div>';
+	html += '<div class="th-line">Directive No. 1142/2026</div>';
+	html += '</div>';
+
+	return html;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MODE SWITCHING & PAPER CONTROL
+   ══════════════════════════════════════════════════════════════ */
+function currentSize() {
+var row = document.querySelector("#rv-size-table .rv-size-row.active");
+	if (row && RV_SIZES[row.getAttribute("data-size")]) {
+		return row.getAttribute("data-size");
+	}
+	return "a4";
+}
+
+function isThermal(size) {
+	return THERMAL_SIZES.indexOf(size) !== -1;
+}
+
+function currentMode() {
+	return isThermal(currentSize()) ? "thermal" : "document";
+}
+
+function applyPageSizeCSS(size) {
+	var cfg = RV_SIZES[size];
+	if (!cfg) { return; }
+	var tag = document.getElementById("page-size-css");
+	if (!tag) {
+		tag = document.createElement("style");
+		tag.id = "page-size-css";
+		document.head.appendChild(tag);
+	}
+	tag.innerHTML = cfg.css;
+}
+
+function renderCurrent() {
+	var host = document.getElementById("rv-host");
+	var target = document.getElementById("receipt");
+	var size = currentSize();
+	var d = RV_DATA || {};
+	var mode = isThermal(size) ? "thermal" : "document";
+
+	/* Keep only the active paper class, then flag the render mode. */
+	host.className = host.className.replace(/\bsize-\S+/g, "").replace(/\bthermal-size\b/g, "").trim();
+	host.className += " size-" + size;
+	if (mode === "thermal") {
+		host.className += " thermal-size";
+	}
+
+	var label = document.getElementById("rv-mode-label");
+	if (label) {
+		label.textContent = mode === "thermal"
+			? "Thermal ticker mode · " + RV_SIZES[size].label
+			: "Document mode · " + RV_SIZES[size].label;
+	}
+
+	target.innerHTML = mode === "thermal" ? renderThermal(d) : renderA4(d);
+	target.setAttribute("data-mode", mode);
+	target.setAttribute("data-size", size);
+}
+
+function selectSize(size, rowEl) {
+	if (!RV_SIZES[size]) { return; }
+
+	document.querySelectorAll("#rv-size-table .rv-size-row").forEach(function (r) {
+	r.classList.remove("active");
+});
+	if (rowEl) { rowEl.classList.add("active"); }
+
+	applyPageSizeCSS(size);
+	renderCurrent();
+}
+
+function printReceipt() {
+	window.print();
+}
+
+function downloadPDF() {
+	/* The browser's print pipeline is the PDF writer; open it save-as-PDF. */
+	window.print();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BOOTSTRAP
+   ══════════════════════════════════════════════════════════════ */
+frappe.ready(function () {
+	var params = new URLSearchParams(window.location.search);
+	var irn = params.get("irn") || params.get("rrn") || "";
+	var qrPayload = params.get("qr_payload") || "";
+	var target = document.getElementById("receipt");
+
+	applyPageSizeCSS(currentSize());
+
+	if (!irn && !qrPayload) {
+		target.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;font-size:13px;">'
+			+ 'Provide an IRN or RRN in the URL (for example <code>?irn=&lt;reference&gt;</code>) to view this receipt.</div>';
+		renderCurrent();
+		return;
+	}
+
+	frappe.call({
+		method: "ethiotel_pos.eims_verify_public.receipt_public",
+		args: { irn: irn, rrn: irn, qr_payload: qrPayload },
+		callback: function (r) {
+			RV_DATA = r.message || {};
+			renderCurrent();
+		},
+		error: function (r) {
+			var msg = (r && (r.message || r.exc_type)) || "Receipt service unavailable.";
+			target.innerHTML = '<div style="padding:40px;text-align:center;color:#b91c1c;font-size:13px;">'
+				+ esc(msg) + '</div>';
+		}
+	});
+});
 </script>
 {% endblock %}

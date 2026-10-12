@@ -62,6 +62,7 @@ def get_payments_entries(pos_opening_shift):
             "mode_of_payment",
             "paid_amount",
             "base_paid_amount",
+            "unallocated_amount",
             "paid_from_account_currency",
             "paid_to_account_currency",
             "target_exchange_rate",
@@ -72,3 +73,41 @@ def get_payments_entries(pos_opening_shift):
             "payment_type",
         ],
     )
+
+
+def get_payment_entry_references(payment_entry_names):
+    """Return the Payment Entry References of the given entries, grouped by entry."""
+
+    references_by_entry = {}
+
+    payment_entry_names = [name for name in payment_entry_names or [] if name]
+    if not payment_entry_names:
+        return references_by_entry
+
+    reference_meta = frappe.get_meta("Payment Entry Reference")
+    reference_fieldnames = {df.fieldname for df in reference_meta.get("fields", [])}
+    reference_fields = [
+        "parent",
+        "reference_doctype",
+        "reference_name",
+        "allocated_amount",
+    ]
+
+    for fieldname in (
+        "exchange_rate",
+        "allocated_amount_in_company_currency",
+        "base_allocated_amount",
+    ):
+        if fieldname in reference_fieldnames:
+            reference_fields.append(fieldname)
+
+    reference_rows = frappe.get_all(
+        "Payment Entry Reference",
+        filters={"parent": ["in", payment_entry_names]},
+        fields=reference_fields,
+    )
+
+    for reference in reference_rows:
+        references_by_entry.setdefault(reference.get("parent"), []).append(reference)
+
+    return references_by_entry

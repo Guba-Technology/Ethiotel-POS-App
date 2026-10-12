@@ -1,7 +1,7 @@
 # Copyright (c) 2026, Ethiotel and contributors
-# For license information, please see license.txt
 
 import json
+import re
 
 import frappe
 from frappe import _
@@ -49,9 +49,7 @@ def _ensure_pos_mor_fields():
 
 
 def _get_or_create_walk_in_customer(company=None):
-	"""Return the walk-in customer (auto-created on first use). Walk-in
-	sales carry this name on the POS Invoice but are submitted to MoR as a
-	minimal B2C invoice with no buyer registration details."""
+
 	from ethiotel_pos.eims_connector import WALK_IN_CUSTOMER
 
 	if frappe.db.exists("Customer", WALK_IN_CUSTOMER):
@@ -159,9 +157,7 @@ def verify_mor_pos_invoice(pos_invoice_name=None, irn=None):
 
 @frappe.whitelist()
 def cancel_mor_pos_invoice(pos_invoice_name, cancellation_reasons="Order cancelled", remark=""):
-	"""Cancel a registered MoR POS Invoice (single) using the EIMS Invoice
-	Cancellation doctype. The POS Invoice is cancelled directly — no
-	Sales Invoice is involved."""
+
 	try:
 		_ensure_pos_mor_fields()
 		irn = frappe.db.get_value("POS Invoice", pos_invoice_name, "custom_mor_irn") or frappe.db.get_value("POS Invoice", pos_invoice_name, "custom_irn")
@@ -323,6 +319,11 @@ def get_mor_details(sales_invoice):
 				"irn": si.custom_irn or "",
 				"document_number": si.custom_document_number or "",
 				"mor_total": flt(si.get("custom_mor_total_value")),
+
+				"withheld_amount": flt(_mor_withholding(si)),
+				"collectible_total": flt(_mor_collectible_total(si)),
+				"apply_discount_on": si.apply_discount_on or "",
+				"base_total": flt(si.base_total),
 				"qr_code_url": si.custom_qr_code_url or "",
 				"customer": si.customer,
 				"customer_name": si.customer_name,
@@ -345,11 +346,20 @@ def get_mor_details(sales_invoice):
 					}
 					for it in (si.items or [])
 				],
+
 				"taxes": [
 					{
 						"description": t.description or t.account_head,
 						"rate": t.rate,
-						"tax_amount": t.tax_amount,
+						"tax_amount": (
+							t.tax_amount_after_discount_amount
+							if t.tax_amount_after_discount_amount not in (None, "")
+							else t.tax_amount
+						),
+						"pre_discount_tax_amount": t.tax_amount,
+						"is_withholding": bool(
+							_classify_withholding(t.account_head)
+						),
 					}
 					for t in (si.taxes or [])
 				],
@@ -362,11 +372,55 @@ def get_mor_details(sales_invoice):
 		return {"status": "error", "message": str(e)}
 
 
+def _classify_withholding(account_head):
+	"""Safe wrapper around the payload builder's withholding classifier."""
+	try:
+		from ethiotel_pos.eims.payload import classify_withholding
+
+		return classify_withholding(account_head)
+	except Exception:
+		return None
+
+
+def _mor_withholding(inv):
+
+	try:
+		from ethiotel_pos.eims.payload import classify_withholding, sum_withholding
+	except Exception:
+		return 0.0
+
+	doc = inv if hasattr(inv, "taxes") else frappe.get_doc("Sales Invoice", inv.get("name"))
+	transaction_type = inv.get("transaction_type") or getattr(doc, "transaction_type", None) or "B2B"
+	try:
+		transaction_wht, income_wht = sum_withholding(doc, transaction_type)
+	except Exception:
+		return 0.0
+
+	# Prefer the amounts already materialised on the tax rows: they are what
+	# ERPNext itself folded into `grand_total`, so they stay consistent with
+	# the ledger. Fall back to the payload builder's own computation.
+	row_total = 0.0
+	found = False
+	for te in (doc.taxes or []):
+		if not te.account_head:
+			continue
+		if _classify_withholding(te.account_head):
+			row_total += abs(flt(
+				te.tax_amount_after_discount_amount
+				if te.tax_amount_after_discount_amount not in (None, "")
+				else te.tax_amount
+			))
+			found = True
+	return row_total if found else flt(transaction_wht) + flt(income_wht)
+
+
+def _mor_collectible_total(inv):
+
+	registered = flt(_mor_registered_total(inv))
+	return max(registered - flt(_mor_withholding(inv)), 0.0)
+
+
 def _mor_registered_total(inv):
-	"""Exact invoice total as registered with the MoR. Prefers the value
-	stored at registration time; falls back to MoR's own verification
-	record (authoritative); recomputes from the payload builder only as a
-	last resort for invoices registered before both existed."""
 	stored = flt(inv.get("custom_mor_total_value") or 0.0)
 	if stored:
 		return stored
@@ -394,9 +448,7 @@ def _mor_registered_total(inv):
 
 
 def _build_invoice_receipt(invoice_name, doctype="Sales Invoice"):
-	"""Create an EIMS Invoice Receipt document covering a registered
-	Sales Invoice or POS Invoice (populated directly from the invoice —
-	no Payment Entry)."""
+
 	inv = frappe.get_doc(doctype, invoice_name)
 	if inv.docstatus != 1 or not inv.custom_irn:
 		frappe.throw(_("Invoice is not registered with MoR — no IRN found."))
@@ -423,23 +475,33 @@ def _build_invoice_receipt(invoice_name, doctype="Sales Invoice"):
 	if existing:
 		receipt = frappe.get_doc("EIMS Invoice Receipt", existing[0][0])
 		if receipt.eims_status != "Active":
-			# Refresh stale amounts (receipts created before exact
-			# registered totals were stored) so MoR accepts the retry.
-			total_amount = _mor_registered_total(inv)
-			receipt.collected_amount = total_amount
+
+			collectible = _mor_collectible_total(inv)
+			registered = flt(_mor_registered_total(inv))
+			withheld = flt(_mor_withholding(inv))
+			receipt.collected_amount = collectible
 			for row in receipt.invoices_covered or []:
 				if row.invoice_irn == inv.custom_irn:
 					row.payment_coverage = "FULL"
-					row.invoice_paid_amount = total_amount
-					row.total_amount = total_amount
+					row.invoice_paid_amount = registered
+					row.mor_collected_amount = registered
+					row.receipt_paid_amount = collectible
+					row.total_amount = registered
 					row.remaining_amount = 0.0
+					row.withheld_amount = withheld
+					row.collectible_amount = collectible
+					row.collectible_remaining_amount = 0.0
+					row.collectible_coverage = "FULL"
 			receipt.save(ignore_permissions=True)
 			frappe.db.commit()
 		return receipt
 
 	receipt = frappe.new_doc("EIMS Invoice Receipt")
 	doc_num = int(inv.custom_document_number or 0)
-	total_amount = _mor_registered_total(inv)
+
+	registered_total = flt(_mor_registered_total(inv))
+	withheld = flt(_mor_withholding(inv))
+	collectible = _mor_collectible_total(inv)
 	receipt.receipt_number = f"RCP-{doc_num if doc_num else inv.name}"
 	receipt.receipt_type = "Sales Receipts"
 	receipt.receipt_date = now_datetime()
@@ -454,20 +516,30 @@ def _build_invoice_receipt(invoice_name, doctype="Sales Invoice"):
 		from ethiotel_pos.eims_connector import resolve_mor_payment_mode
 		mop = (inv.payments[0].mode_of_payment or "CASH")
 		receipt.mode_of_payment = resolve_mor_payment_mode(mop) or "CASH"
-	receipt.collected_amount = total_amount
+	# What the customer actually hands over is the collectible amount; the
+	# withheld tax is remitted to the tax authority, not to the seller.
+	receipt.collected_amount = collectible
 	receipt.currency = inv.currency
 	receipt.collector_name = inv.owner or "Cashier"
 	receipt.seller_tin = settings.get("seller_tin") or ""
 	if default_client:
 		receipt.source_system_type = default_client.get("system_type")
-		receipt.source_system_no = default_client.get("system_number")
+		receipt.source_system_no = default_client.get("default_system_number")
 	covered_row = {
 		"invoice_irn": inv.custom_irn,
 		"payment_coverage": "FULL",
-		"invoice_paid_amount": total_amount,
+		# Reported to MoR on the registered basis so the receipt discharges
+		# the invoice; CollectedAmount is built from this field.
+		"invoice_paid_amount": registered_total,
+		"mor_collected_amount": registered_total,
+		"receipt_paid_amount": collectible,
 		"discount_amount": float(inv.discount_amount or 0.0),
 		"remaining_amount": 0.0,
-		"total_amount": total_amount,
+		"total_amount": registered_total,
+		"withheld_amount": withheld,
+		"collectible_amount": collectible,
+		"collectible_remaining_amount": 0.0,
+		"collectible_coverage": "FULL",
 	}
 	if doctype == "POS Invoice":
 		covered_row["pos_invoice"] = inv.name
@@ -492,7 +564,8 @@ def _finalize_receipt_result(receipt, res):
 	if not (isinstance(res, dict) and not res.get("success")):
 		return None
 	raw = str(res.get("message") or "")
-	if "Receipt generated for the Invoice IRN given" not in raw:
+
+	if not re.search(r"(?<!Partial )Receipt generated for the Invoice IRN given", raw):
 		return None
 	if receipt.eims_status != "Active":
 		receipt.eims_status = "Active"
@@ -511,11 +584,7 @@ def _finalize_receipt_result(receipt, res):
 
 @frappe.whitelist()
 def get_invoice_receipt(sales_invoice):
-	"""MoR task (desk Sales Invoice): receipts are issued whenever money is
-	received, i.e. against a SUBMITTED Payment Entry. This creates (or
-	returns) the EIMS Invoice Receipt document populated from that Payment
-	Entry and forwards the user to it — it NEVER transmits to MoR
-	automatically; authorization happens from the receipt document."""
+
 	try:
 		inv = frappe.get_doc("Sales Invoice", sales_invoice)
 		if inv.docstatus != 1:
@@ -532,12 +601,17 @@ def get_invoice_receipt(sales_invoice):
 				).format(sales_invoice),
 			}
 
-		receipt = _build_payment_receipt(inv, payment_entry)
+		receipt, created = _build_payment_receipt(inv, payment_entry)
 		return {
 			"status": "ok",
 			"receipt_name": receipt.name,
 			"payment_entry": payment_entry,
+			# False means this payment already had a receipt, or the invoice was
+			# settled by an earlier one — the UI tells the user instead of
+			# silently creating a new document.
+			"created": created,
 			"already_active": receipt.eims_status == "Active",
+			"eims_status": receipt.eims_status,
 		}
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "V2 MoR receipt generation error")
@@ -559,32 +633,55 @@ def _find_sales_invoice_payment(sales_invoice):
 	return None
 
 
+from ethiotel_pos.ethio_telecom_pos_app.doctype.eims_invoice_receipt.eims_invoice_receipt import (
+	_next_receipt_number,
+)
+
+
 def _build_payment_receipt(inv, payment_entry):
-	"""Create (or reuse) an EIMS Invoice Receipt for a registered Sales
-	Invoice against its Payment Entry. Amounts are rebuilt from the exact
-	registered totals by fetch_payment_entry_details(); nothing is sent
-	to MoR here."""
+
+	for_existing = frappe.db.sql(
+		"""
+		SELECT name, eims_status
+		FROM `tabEIMS Invoice Receipt`
+		WHERE payment_entry = %s AND docstatus < 2
+		ORDER BY creation DESC LIMIT 1
+		""",
+		(payment_entry,),
+		as_dict=True,
+	)
+	if for_existing:
+		return frappe.get_doc("EIMS Invoice Receipt", for_existing[0].name), False
+
+	# An invoice that is already fully paid must not collect again — hand back
+	# the receipt that settled it.
 	existing = frappe.db.sql(
 		"""
-		SELECT parent FROM `tabEIMS Invoice Receipt Reference`
-		WHERE sales_invoice = %s AND docstatus < 2
-		ORDER BY parent LIMIT 1
+		SELECT r.name, r.eims_status
+		FROM `tabEIMS Invoice Receipt Reference` ref
+		JOIN `tabEIMS Invoice Receipt` r ON r.name = ref.parent
+		WHERE ref.sales_invoice = %s AND r.docstatus < 2 AND ref.payment_coverage = 'FULL'
+		ORDER BY r.creation DESC LIMIT 1
 		""",
 		(inv.name,),
+		as_dict=True,
 	)
 	if existing:
-		receipt = frappe.get_doc("EIMS Invoice Receipt", existing[0][0])
+		receipt = frappe.get_doc("EIMS Invoice Receipt", existing[0].name)
 		if receipt.eims_status != "Active":
 			# Re-sync from the Payment Entry (exact registered totals).
 			receipt.payment_entry = payment_entry
 			receipt.fetch_payment_entry_details()
 			receipt.save(ignore_permissions=True)
 			frappe.db.commit()
-		return receipt
+		# This payment has no receipt of its own yet, but the invoice is
+		# already settled, so the settling receipt is the one to show.
+		return receipt, False
 
 	receipt = frappe.new_doc("EIMS Invoice Receipt")
 	doc_num = int(inv.custom_document_number or 0)
-	receipt.receipt_number = f"RCP-{doc_num if doc_num else inv.name}"
+	base_number = f"RCP-{doc_num if doc_num else inv.name}"
+	receipt.receipt_number = _next_receipt_number(base_number, inv.name)
 	receipt.receipt_type = "Sales Receipts"
 	receipt.eims_status = "Pending"
 	receipt.payment_entry = payment_entry
@@ -595,7 +692,7 @@ def _build_payment_receipt(inv, payment_entry):
 	receipt.fetch_payment_entry_details()
 	receipt.save(ignore_permissions=True)
 	frappe.db.commit()
-	return receipt
+	return receipt, True
 
 
 @frappe.whitelist()
@@ -628,9 +725,7 @@ def get_pos_receipt(pos_invoice_name):
 
 @frappe.whitelist()
 def get_forkiva_receipt(pos_invoice_name):
-	"""Compact customer receipt: the Forkiva Sales Receipt print format
-	rendered with the MoR QR code and IRN (when the invoice is
-	registered). Returns standalone HTML including the format CSS."""
+
 	try:
 		pos = frappe.get_doc("POS Invoice", pos_invoice_name)
 		if pos.docstatus != 1:
@@ -650,9 +745,7 @@ def get_forkiva_receipt(pos_invoice_name):
 
 @frappe.whitelist()
 def queue_mor_registration(pos_invoice_name):
-	"""Fire-and-forget: hand the invoice to a background worker which
-	registers it with MoR and pre-renders the light (Forkiva) receipt so
-	the cashier never waits on MoR at the counter."""
+
 	try:
 		pos = frappe.get_doc("POS Invoice", pos_invoice_name)
 		if pos.docstatus != 1:
@@ -689,10 +782,7 @@ def _register_and_prepare_receipt(pos_invoice_name):
 
 
 def _clean_print_html(raw_html):
-	"""frappe.get_print() returns a FULL HTML document (head/body/scripts).
-	Dialogs need only the printable fragment: extract the <body> content,
-	drop every <script>, and keep any <style> blocks so the format still
-	renders styled."""
+
 	import re
 
 	body_match = re.search(r"<body[^>]*>([\s\S]*)</body>", raw_html, re.I)
@@ -767,9 +857,7 @@ def get_mor_invoices(status="", search_term="", limit=50, offset=0):
 	try:
 		_ensure_pos_mor_fields()
 	except Exception as e:
-		# Roll back any partial DB changes performed while attempting to
-		# ensure required custom fields, then re-raise to stop invoice
-		# insertion when setup is not available.
+
 		frappe.db.rollback()
 		raise
 	cond = "docstatus = 1"
@@ -840,9 +928,7 @@ def check_opening_entry(user):
 @frappe.whitelist()
 def get_pos_profile_data(pos_profile):
 	data = frappe.get_doc("POS Profile", pos_profile).as_dict()
-	# Only offer payment methods the POS can actually send to MoR
-	# (CASH, CHEQUE, CPO, Local Bank Transfer, SWIFT, Wire Transfer,
-	# Letter of Credit, Card) and that exist on the profile.
+
 	from ethiotel_pos.eims_connector import resolve_mor_payment_mode
 
 	data["payments"] = [
@@ -1120,6 +1206,37 @@ def get_dashboard_data(pos_profile=None, from_date=None, to_date=None):
 		as_dict=True,
 	)
 
+	# opening amounts per mode from the current open shift
+	opening_per_mode = frappe.db.sql(
+		"""
+		SELECT bd.mode_of_payment, bd.opening_amount
+		FROM `tabPOS Opening Entry Detail` bd
+		JOIN `tabPOS Opening Entry` o ON o.name = bd.parent
+		WHERE o.docstatus = 1 AND o.status = 'Open' AND o.pos_profile = COALESCE(%s, o.pos_profile)
+		""",
+		(pos_profile,),
+		as_dict=True,
+	)
+	opening_map = {r.mode_of_payment: flt(r.opening_amount) for r in opening_per_mode}
+
+	# merge opening amounts into payment methods so the dashboard can show
+	# opening, today's sales, and expected (opening + today) per mode
+	for p in payments:
+		p["opening_amount"] = opening_map.get(p["mode_of_payment"], 0)
+		p["expected_amount"] = flt(p["opening_amount"]) + flt(p["amount"])
+
+	# include modes that have opening amounts but no sales today
+	for mode, opening_amt in opening_map.items():
+		if not any(p["mode_of_payment"] == mode for p in payments):
+			payments.append(
+				{
+					"mode_of_payment": mode,
+					"amount": 0,
+					"opening_amount": opening_amt,
+					"expected_amount": opening_amt,
+				}
+			)
+
 	# top selling items
 	top_items = frappe.db.sql(
 		"""
@@ -1154,7 +1271,7 @@ def get_dashboard_data(pos_profile=None, from_date=None, to_date=None):
 		SELECT ifnull(SUM(bd.opening_amount), 0) AS amount
 		FROM `tabPOS Opening Entry Detail` bd
 		JOIN `tabPOS Opening Entry` o ON o.name = bd.parent
-		WHERE o.docstatus = 0 AND o.pos_profile = COALESCE(%s, o.pos_profile)
+		WHERE o.docstatus = 1 AND o.status = 'Open' AND o.pos_profile = COALESCE(%s, o.pos_profile)
 		""",
 		(pos_profile,),
 		as_dict=True,
@@ -1943,6 +2060,7 @@ def close_shift(pos_opening):
 @frappe.whitelist()
 def create_opening_voucher(pos_profile, company, balance_details, taxes_and_charges=None):
 	balance_details = json.loads(balance_details)
+	balance_details = _normalize_opening_balances(pos_profile, balance_details)
 
 	new_pos_opening = frappe.get_doc(
 		{
@@ -1959,3 +2077,39 @@ def create_opening_voucher(pos_profile, company, balance_details, taxes_and_char
 	new_pos_opening.submit()
 
 	return new_pos_opening.as_dict()
+
+
+def _normalize_opening_balances(pos_profile, balance_details):
+
+	submitted = {}
+	for row in balance_details or []:
+		if not isinstance(row, dict):
+			continue
+
+		mode = str(row.get("mode_of_payment") or "").strip()
+		if not mode:
+			continue
+
+		amount = row.get("opening_amount")
+		if amount in (None, ""):
+			amount = row.get("amount")
+		submitted[mode] = flt(amount)
+
+	# Profile order first, so the child table and everything derived from it stay
+	# in a stable, predictable order.
+	rows = [
+		{"mode_of_payment": mode, "opening_amount": submitted.get(mode, 0)}
+		for mode in get_opening_payment_modes(pos_profile)
+	]
+
+	# Anything else the cashier submitted is still a real payment method.
+	rows.extend(
+		{"mode_of_payment": mode, "opening_amount": amount}
+		for mode, amount in submitted.items()
+		if mode not in {row["mode_of_payment"] for row in rows}
+	)
+
+	if not rows:
+		frappe.throw(_("Add at least one mode of payment."))
+
+	return rows

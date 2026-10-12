@@ -2,8 +2,14 @@ import frappe
 from frappe.utils import flt, json
 from collections import defaultdict
 from frappe import _
-from ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.utils import get_base_value
+from ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.utils import (
+    get_base_value,
+    net_change_from_payments,
+    reference_base_amount,
+    remaining_change_after_refund,
+)
 from ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.data import (
+    get_payment_entry_references,
     get_pos_invoices,
     get_payments_entries,
 )
@@ -72,6 +78,7 @@ def get_closing_shift_overview(pos_opening_shift):
     change_totals_by_currency = {}
     overpayment_change_company_currency_total = 0
     overpayment_change_totals_by_currency = {}
+    shift_change_total = 0
     total_change_totals_by_currency = {}
     loyalty_redeemed_company_currency_total = 0
     loyalty_redeemed_points = 0
@@ -125,7 +132,6 @@ def get_closing_shift_overview(pos_opening_shift):
     shift_invoice_names = {invoice.get("name") for invoice in invoices}
     invoice_shift_link_field_cache = {}
     invoice_membership_cache = {}
-    overpayment_invoice_names = set()
 
     def resolve_shift_link_field(doctype_name):
         if doctype_name in invoice_shift_link_field_cache:
@@ -165,68 +171,7 @@ def get_closing_shift_overview(pos_opening_shift):
         return invoice_membership_cache[key]
 
     payment_entries = get_payments_entries(opening_shift_doc.name)
-
-    payment_entry_names = [row.get("name") for row in payment_entries if row.get("name")]
-    references_by_entry = defaultdict(list)
-
-    if payment_entry_names:
-        reference_meta = frappe.get_meta("Payment Entry Reference")
-        reference_fieldnames = {df.fieldname for df in reference_meta.get("fields", [])}
-        reference_fields = [
-            "parent",
-            "reference_doctype",
-            "reference_name",
-            "allocated_amount",
-        ]
-
-        if "exchange_rate" in reference_fieldnames:
-            reference_fields.append("exchange_rate")
-        if "allocated_amount_in_company_currency" in reference_fieldnames:
-            reference_fields.append("allocated_amount_in_company_currency")
-        if "base_allocated_amount" in reference_fieldnames:
-            reference_fields.append("base_allocated_amount")
-
-        reference_rows = frappe.get_all(
-            "Payment Entry Reference",
-            filters={"parent": ["in", payment_entry_names]},
-            fields=reference_fields,
-        )
-
-        for reference in reference_rows:
-            references_by_entry[reference.get("parent")].append(reference)
-
-    for entry in payment_entries:
-        if entry.get("payment_type") != "Pay":
-            continue
-
-        references = references_by_entry.get(entry.get("name")) or []
-
-        for reference in references:
-            reference_doctype = reference.get("reference_doctype")
-            reference_name = reference.get("reference_name")
-            belongs_to_shift = False
-
-            if reference_doctype and reference_name:
-                belongs_to_shift = reference_belongs_to_shift(
-                    reference_doctype,
-                    reference_name,
-                )
-
-            if belongs_to_shift and reference_doctype in {"POS Invoice", "Sales Invoice"}:
-                overpayment_invoice_names.add(reference_name)
-
-    def reference_base_amount(reference, fallback_rate=None):
-        for fieldname in (
-            "allocated_amount_in_company_currency",
-            "base_allocated_amount",
-        ):
-            value = reference.get(fieldname)
-            if value not in (None, ""):
-                return flt(value)
-
-        amount_value = flt(reference.get("allocated_amount") or 0)
-        rate_value = reference.get("exchange_rate") or fallback_rate or 1
-        return amount_value * flt(rate_value or 1)
+    references_by_entry = get_payment_entry_references([row.get("name") for row in payment_entries])
 
     for invoice in invoices:
         conversion_rate = invoice.get("conversion_rate")
@@ -305,9 +250,8 @@ def get_closing_shift_overview(pos_opening_shift):
                     loyalty_entry["exchange_rates"].add(rate)
 
         change_amount = flt(invoice.get("change_amount") or 0)
-        has_overpayment_entry = invoice.get("name") in overpayment_invoice_names
 
-        if change_amount and not has_overpayment_entry:
+        if change_amount:
             change_entry = change_totals_by_currency.setdefault(
                 invoice_currency,
                 {
@@ -419,11 +363,16 @@ def get_closing_shift_overview(pos_opening_shift):
                 if rate:
                     returns_entry["exchange_rates"].add(rate)
 
-        for payment in invoice.get("payments", []):
-            mode = payment.get("mode_of_payment")
-            payment_currency = resolve_payment_currency(payment, invoice_currency)
-            amount = flt(payment.get("amount") or 0)
-            base_amount = get_base_value(payment, "amount", "base_amount", conversion_rate)
+        for payment in net_change_from_payments(
+            invoice.get("payments", []),
+            invoice.get("change_amount"),
+            get_base_value(invoice, "change_amount", "base_change_amount", conversion_rate),
+            conversion_rate,
+        ):
+            mode = payment["mode_of_payment"]
+            payment_currency = resolve_payment_currency(payment["row"], invoice_currency)
+            amount = flt(payment["amount"] or 0)
+            base_amount = flt(payment["base_amount"] or 0)
             accumulate_payment(
                 payments_by_mode,
                 mode,
@@ -432,6 +381,8 @@ def get_closing_shift_overview(pos_opening_shift):
                 base_amount,
                 conversion_rate,
             )
+
+        shift_change_total += get_base_value(invoice, "change_amount", "base_change_amount", conversion_rate)
 
     for entry in payment_entries:
         mode = entry.get("mode_of_payment")
@@ -453,104 +404,68 @@ def get_closing_shift_overview(pos_opening_shift):
             entry_rate,
         )
 
-        multiplier = -1 if entry.get("payment_type") == "Pay" else 1
-        amount = multiplier * abs(raw_amount)
-        base_amount = multiplier * abs(raw_base_amount)
-
-        if entry.get("payment_type") == "Pay":
-            change_row = overpayment_change_totals_by_currency.setdefault(
-                payment_currency,
-                {
-                    "currency": payment_currency,
-                    "total": 0,
-                    "company_currency_total": 0,
-                    "exchange_rates": set(),
-                },
-            )
-            refund_amount = abs(raw_amount)
-            refund_base_amount = abs(raw_base_amount)
-            change_row["total"] += refund_amount
-            change_row["company_currency_total"] += refund_base_amount
-            overpayment_change_company_currency_total += refund_base_amount
-
-            total_change_entry = total_change_totals_by_currency.setdefault(
-                payment_currency,
-                {
-                    "currency": payment_currency,
-                    "total": 0,
-                    "company_currency_total": 0,
-                    "exchange_rates": set(),
-                },
-            )
-            total_change_entry["total"] += refund_amount
-            total_change_entry["company_currency_total"] += refund_base_amount
-
-            if payment_currency != company_currency:
-                rate = None
-                if refund_amount:
-                    rate = abs(refund_base_amount) / abs(refund_amount) if refund_base_amount else None
-                if not rate and entry_rate:
-                    rate = flt(entry_rate)
-                if rate:
-                    change_row["exchange_rates"].add(rate)
-                    total_change_entry["exchange_rates"].add(rate)
+        is_pay = entry.get("payment_type") == "Pay"
 
         references = references_by_entry.get(entry.get("name")) or []
-        allocated_amount_sum = 0
-        allocated_base_sum = 0
+        shift_allocated_amount = 0
+        shift_allocated_base = 0
 
-        if references:
-            for reference in references:
-                allocated_amount = multiplier * abs(flt(reference.get("allocated_amount") or 0))
-                if not allocated_amount:
-                    continue
+        for reference in references:
+            reference_doctype = reference.get("reference_doctype")
+            reference_name = reference.get("reference_name")
+            if not (reference_doctype and reference_name):
+                continue
+            if not reference_belongs_to_shift(reference_doctype, reference_name):
+                continue
 
-                allocated_base = multiplier * abs(reference_base_amount(reference, entry_rate))
-                allocated_amount_sum += allocated_amount
-                allocated_base_sum += allocated_base
+            shift_allocated_amount += abs(flt(reference.get("allocated_amount") or 0))
+            shift_allocated_base += abs(reference_base_amount(reference, entry_rate))
 
-                reference_doctype = reference.get("reference_doctype")
-                reference_name = reference.get("reference_name")
-                belongs_to_shift = False
-                if reference_doctype and reference_name:
-                    belongs_to_shift = reference_belongs_to_shift(
-                        reference_doctype,
-                        reference_name,
-                    )
+        # Tenders already recorded on this shift's invoices must not be counted again.
+        drawer_base = max(0, abs(raw_base_amount) - shift_allocated_base)
+        drawer_amount = max(0, abs(raw_amount) - shift_allocated_amount)
 
-                rate = reference.get("exchange_rate") or entry_rate
+        if is_pay:
+            # Change handed back while serving this shift is already netted out of the
+            # invoice tender, so only a refund beyond that takes cash out of the drawer.
+            covered_change, refund_base = remaining_change_after_refund(shift_change_total, drawer_base)
+            shift_change_total = max(0, shift_change_total - drawer_base)
+            refund_amount = drawer_amount * (refund_base / drawer_base) if drawer_base else 0
 
-                accumulate_payment(
-                    payments_by_mode,
-                    mode,
-                    payment_currency,
-                    allocated_amount,
-                    allocated_base,
-                    rate,
-                )
+            if refund_base:
+                if payment_currency != company_currency:
+                    refund_rate = abs(refund_base) / abs(refund_amount) if refund_amount else None
+                    if not refund_rate and entry_rate:
+                        refund_rate = flt(entry_rate)
+                    if refund_rate:
+                        change_row = overpayment_change_totals_by_currency.setdefault(
+                            payment_currency,
+                            {
+                                "currency": payment_currency,
+                                "total": 0,
+                                "company_currency_total": 0,
+                                "exchange_rates": set(),
+                            },
+                        )
+                        change_row["total"] += refund_amount
+                        change_row["company_currency_total"] += refund_base
+                        change_row["exchange_rates"].add(refund_rate)
 
-        residual_amount = amount - allocated_amount_sum
-        residual_base = base_amount - allocated_base_sum
+                overpayment_change_company_currency_total += refund_base
 
-        unallocated_amount = entry.get("unallocated_amount")
-        if unallocated_amount not in (None, ""):
-            residual_amount = multiplier * abs(flt(unallocated_amount))
-            residual_base = multiplier * abs(
-                get_base_value(
-                    entry,
-                    "unallocated_amount",
-                    "base_unallocated_amount",
-                    entry_rate,
-                )
-            )
+            amount = -refund_amount
+            base_amount = -refund_base
+        else:
+            amount = drawer_amount
+            base_amount = drawer_base
 
-        if abs(residual_amount) > 0.0001 or abs(residual_base) > 0.0001:
+        if abs(amount) > 0.0001 or abs(base_amount) > 0.0001:
             accumulate_payment(
                 payments_by_mode,
                 mode,
                 payment_currency,
-                residual_amount,
-                residual_base,
+                amount,
+                base_amount,
                 entry_rate,
             )
 
@@ -586,18 +501,6 @@ def get_closing_shift_overview(pos_opening_shift):
         currency_row["company_currency_total"] += movement_amount
 
     if cash_mode_of_payment:
-        for row in payments_by_mode.values():
-            if row["mode_of_payment"] != cash_mode_of_payment:
-                continue
-
-            overpayment_change_row = overpayment_change_totals_by_currency.get(row["currency"])
-            if overpayment_change_row:
-                row["total"] -= flt(overpayment_change_row.get("total"))
-
-                base_overpayment_change = overpayment_change_row.get("company_currency_total")
-                if base_overpayment_change:
-                    row["company_currency_total"] -= flt(base_overpayment_change)
-
         if cash_movement_company_currency_total:
             cash_key = (cash_mode_of_payment, company_currency)
             cash_row = payments_by_mode.setdefault(

@@ -7,15 +7,9 @@ from types import SimpleNamespace
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[5]
-OVERVIEW_PATH = (
-    REPO_ROOT
-    / "ethiotel_pos"
-    / "ethiotel_pos"
-    / "doctype"
-    / "pos_closing_shift"
-    / "closing_processing"
-    / "overview.py"
-)
+CLOSING_PROCESSING_PATH = pathlib.Path(__file__).resolve().parent
+OVERVIEW_PATH = CLOSING_PROCESSING_PATH / "overview.py"
+UTILS_PATH = CLOSING_PROCESSING_PATH / "utils.py"
 
 
 class AttrDict(dict):
@@ -25,9 +19,6 @@ class AttrDict(dict):
 def _install_stubs():
     frappe_module = types.ModuleType("frappe")
     frappe_utils_module = types.ModuleType("frappe.utils")
-    closing_utils_module = types.ModuleType(
-        "ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.utils"
-    )
     closing_data_module = types.ModuleType(
         "ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.data"
     )
@@ -56,24 +47,22 @@ def _install_stubs():
     frappe_utils_module.flt = lambda value=0, precision=None: float(value or 0)
     frappe_utils_module.json = __import__("json")
 
-    def get_base_value(row, amount_field, base_field, conversion_rate=None):
-        value = row.get(base_field)
-        if value not in (None, ""):
-            return float(value or 0)
-        return float(row.get(amount_field) or 0) * float(conversion_rate or 1)
-
-    closing_utils_module.get_base_value = get_base_value
     closing_data_module.get_payments_entries = lambda *args, **kwargs: []
     closing_data_module.get_pos_invoices = lambda *args, **kwargs: []
+    closing_data_module.get_payment_entry_references = lambda *args, **kwargs: {}
 
     sys.modules["frappe"] = frappe_module
     sys.modules["frappe.utils"] = frappe_utils_module
     sys.modules[
-        "ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.utils"
-    ] = closing_utils_module
-    sys.modules[
         "ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.data"
     ] = closing_data_module
+
+    # The real utils module is used so the payment netting helpers are exercised.
+    utils_name = "ethiotel_pos.ethio_telecom_pos_app.doctype.pos_closing_shift.closing_processing.utils"
+    utils_spec = importlib.util.spec_from_file_location(utils_name, UTILS_PATH)
+    utils_module = importlib.util.module_from_spec(utils_spec)
+    sys.modules[utils_name] = utils_module
+    utils_spec.loader.exec_module(utils_module)
 
 
 def _load_module():

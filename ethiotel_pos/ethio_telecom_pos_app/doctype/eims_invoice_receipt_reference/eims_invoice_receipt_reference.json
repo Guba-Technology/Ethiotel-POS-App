@@ -5,11 +5,12 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
-"field_order": [
+  "field_order": [
    "sales_invoice",
    "pos_invoice",
    "invoice_irn",
    "payment_coverage",
+   "receipt_paid_amount",
    "invoice_paid_amount",
    "discount_amount",
    "remaining_amount",
@@ -33,6 +34,44 @@
    "in_preview": 1,
    "in_standard_filter": 1,
    "label": "Payment Coverage",
+   "options": "FULL\nPARTIAL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "receipt_paid_amount",
+   "fieldtype": "Currency",
+   "label": "This Receipt Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "mor_collected_amount",
+   "fieldtype": "Currency",
+   "label": "Amount Reported to MoR",
+   "read_only": 1,
+   "description": "What this receipt declares as collected on the registered (MoR) basis. Equals the cash collected, plus the withheld tax on the closing receipt, so that the sum of all receipts equals the registered total."
+  },
+  {
+   "fieldname": "withheld_amount",
+   "fieldtype": "Currency",
+   "label": "Tax Withheld (Not Payable to Seller)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "collectible_amount",
+   "fieldtype": "Currency",
+   "label": "Collectible Amount (Registered - Withheld)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "collectible_remaining_amount",
+   "fieldtype": "Currency",
+   "label": "Collectible Remaining",
+   "read_only": 1
+  },
+  {
+   "fieldname": "collectible_coverage",
+   "fieldtype": "Select",
+   "label": "Collectible Coverage",
    "options": "FULL\nPARTIAL",
    "read_only": 1
   },
