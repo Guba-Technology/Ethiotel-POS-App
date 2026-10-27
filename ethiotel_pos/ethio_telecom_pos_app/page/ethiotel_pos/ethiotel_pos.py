@@ -1037,10 +1037,13 @@ def item_group_query(doctype, txt, searchfield, start, page_len, filters):
 
 	pos_profile = (filters or {}).get("pos_profile")
 
+	values = {"txt": f"%{txt}%", "page_len": cint(page_len), "start": cint(start)}
+
 	if pos_profile:
 		item_groups = get_item_groups(pos_profile)
 		if item_groups:
-			cond = "name in (%s)" % (", ".join(["%s"] * len(item_groups)))
+			cond = "name IN %(item_groups)s"
+			values["item_groups"] = tuple(item_groups)
 
 	return frappe.db.sql(
 		f"""
@@ -1049,7 +1052,7 @@ def item_group_query(doctype, txt, searchfield, start, page_len, filters):
 		ORDER BY lft ASC
 		LIMIT %(page_len)s OFFSET %(start)s
 		""",
-		{"txt": f"%{txt}%", "page_len": cint(page_len), "start": cint(start)},
+		values,
 	)
 
 
@@ -2011,7 +2014,7 @@ def get_shift_summary(pos_opening):
 		as_dict=True,
 	)
 	summary["invoice_count"] = len(rows)
-	summary["sales_total"] = flt(sum(r.grand_total or 0) for r in rows)
+	summary["sales_total"] = flt(sum(r.grand_total or 0 for r in rows))
 	summary["customer_count"] = len({r.customer for r in rows})
 
 	payments = frappe.db.sql(
